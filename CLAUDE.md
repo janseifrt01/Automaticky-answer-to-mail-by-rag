@@ -31,23 +31,40 @@ Single-user per deployment. Web app only (fully responsive). Starts in
 5. **Review & send** — in Pilot mode the user approves / edits / discards each
    draft; in Auto mode matching emails are sent automatically.
 
-## Planned stack
+## Planned stack (Python)
 
-| Layer                 | Technology                                  |
-| --------------------- | ------------------------------------------- |
-| Database & backend    | Convex (real-time, serverless)              |
-| AI embeddings         | OpenAI `text-embedding-3-small`             |
-| AI reply generation   | OpenAI `gpt-4o-mini`                         |
-| Knowledge search      | Convex vector search                        |
-| Email integration     | Gmail API via Google OAuth2                 |
-| File parsing          | PDF / DOCX / TXT text extraction            |
-| Email polling         | Convex cron job (every 5 min)               |
+The solution is built in **Python**. The original idea sketched a Convex/JS
+stack; the Convex-specific pieces (serverless functions, built-in vector
+search, cron) are replaced with Python-native equivalents below.
 
-> **Provider note for AI assistants:** this project uses **OpenAI**, not
-> Claude/Anthropic. Use the OpenAI SDK and the model IDs above unless the
-> user explicitly changes the provider.
+| Layer                 | Technology                                                        |
+| --------------------- | ---------------------------------------------------------------- |
+| Backend / API         | **FastAPI** (async, OpenAPI built-in)                            |
+| Database              | **PostgreSQL**                                                    |
+| Vector search         | **pgvector** (Postgres extension — vectors live next to data)    |
+| Inbox polling         | **APScheduler** every ~5 min (or Celery + Redis for a worker)    |
+| AI embeddings         | OpenAI `text-embedding-3-small` (provider-swappable)             |
+| AI reply generation   | OpenAI `gpt-4o-mini` (provider-swappable)                        |
+| Email integration     | Gmail API — `google-api-python-client` + `google-auth-oauthlib` |
+| File parsing          | `pypdf` (PDF), `python-docx` (DOCX), plain read (TXT)           |
+| Frontend              | FastAPI + Jinja2 + HTMX + Tailwind (or a React SPA)              |
+| Config / secrets      | `.env` + `pydantic-settings`; OAuth tokens encrypted in DB       |
 
-## Planned data model (Convex schema)
+**Design notes / decisions:**
+
+- **Postgres + pgvector** instead of a separate vector DB: a single-user app
+  doesn't need a dedicated vector service — keep emails, knowledge chunks, and
+  embeddings in one transactional store.
+- **HTMX over React**: the review dashboard works well with server-rendered
+  HTMX (live-ish queue, approve/edit/send) and no separate JS build. Choose
+  React only for a richer client.
+- **Polling over push**: APScheduler polling matches the original 5-minute
+  plan and is simplest; Gmail push via Pub/Sub watch is a later optimization.
+- **Provider stays pluggable**: keep one `embed()` / `generate()` interface so
+  OpenAI ↔ Claude is a config swap, not a rewrite. OpenAI is the documented
+  default unless the user changes it.
+
+## Planned data model (Postgres)
 
 - **knowledge chunks** — chunked + embedded knowledge-base content.
 - **emails** — incoming messages with status (pending / approved / sent).
@@ -64,7 +81,7 @@ Single-user per deployment. Web app only (fully responsive). Starts in
 
 ## Configuration & secrets
 
-Required keys (keep out of source control — use env vars / Convex env config):
+Required keys (keep out of source control — use a gitignored `.env`):
 
 - **OpenAI API key** — embeddings + reply generation.
 - **Google Cloud credentials** (Client ID + Client Secret) — Gmail OAuth2.
