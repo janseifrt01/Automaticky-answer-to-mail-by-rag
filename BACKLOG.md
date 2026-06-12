@@ -1,0 +1,136 @@
+# MVP Backlog — RAG Mail Auto-Reply
+
+Task backlog for the MVP. Scope and architecture follow `CLAUDE.md` (local,
+single-user; FastAPI + SQLite/`sqlite-vec` + APScheduler; OpenAI; Gmail API).
+
+**Legend** — Priority: P0 (MVP-critical) · P1 (needed for a good MVP) ·
+P2 (nice-to-have, can slip). Status: `[ ]` todo · `[~]` in progress ·
+`[x]` done.
+
+**MVP definition of done:** connect a Gmail account, build a knowledge base
+from files/text, automatically sync new mail, triage + retrieve + generate a
+grounded draft (with confidence gating and safe-sender guards), review it in a
+dashboard, and Approve & Send. Auto-send works only when all guards pass.
+
+---
+
+## Epic 0 — Project setup & foundations
+
+- [ ] **0.1 (P0)** Scaffold repo: `app/` package, `pyproject.toml`/
+  `requirements.txt`, `.gitignore` (`.env`, `*.db`, `__pycache__`), `README`.
+- [ ] **0.2 (P0)** Config layer with `pydantic-settings`: load `OPENAI_API_KEY`,
+  Google client id/secret, DB path, confidence threshold, reply mode from `.env`.
+- [ ] **0.3 (P0)** FastAPI app skeleton: app factory, health endpoint, run via
+  `uvicorn`; document `install` / `run` / `test` commands in README + CLAUDE.md.
+- [ ] **0.4 (P0)** SQLite bootstrap: open DB, load `sqlite-vec` extension,
+  create tables (see Epic 1), idempotent migrations on startup.
+- [ ] **0.5 (P1)** Test harness: `pytest`, fixtures for a temp SQLite DB and a
+  fake OpenAI/Gmail client; CI-less local `pytest` green.
+- [ ] **0.6 (P1)** Provider abstraction: `embed(texts)` / `generate(prompt)`
+  interface with an OpenAI implementation (keeps provider swappable).
+
+## Epic 1 — Data model & persistence
+
+- [ ] **1.1 (P0)** `knowledge_chunks` table — id, source_file, chunk_text,
+  metadata, embedding (vector).
+- [ ] **1.2 (P0)** `emails` table — messageId, threadId, sender, subject, body,
+  headers, triage_category, status (pending/drafted/approved/sent/skipped),
+  timestamps.
+- [ ] **1.3 (P0)** `replies` table — email_id (fk), reply_text, sources_used,
+  confidence, should_send, gmail_draft_id, status.
+- [ ] **1.4 (P0)** `settings` table — gmail connection, reply_mode (Pilot/Auto),
+  confidence_threshold, auto_send_rules (keywords/categories).
+- [ ] **1.5 (P0)** `sync_state` table — last Gmail `historyId`.
+- [ ] **1.6 (P1)** Repository/data-access helpers + unit tests for each table.
+
+## Epic 2 — Gmail integration
+
+- [ ] **2.1 (P0)** Google OAuth2 flow: connect/disconnect, minimal scopes
+  (read + send/modify + drafts), store **encrypted** tokens, auto-refresh.
+- [ ] **2.2 (P0)** Gmail client wrapper: list/get message, get thread, create
+  draft, send, with retry/backoff on transient errors.
+- [ ] **2.3 (P0)** Incremental sync via **History API (`historyId`)**; persist
+  `historyId`; full-sync fallback when history is expired.
+- [ ] **2.4 (P0)** Idempotency: skip already-processed `messageId`s
+  (no double-draft / double-send).
+- [ ] **2.5 (P0)** Parse messages: extract sender, subject, plaintext body,
+  and relevant headers; assemble thread context for prompting.
+
+## Epic 3 — Knowledge base ingestion
+
+- [ ] **3.1 (P0)** File upload (PDF/DOCX/TXT) + paste-text endpoint.
+- [ ] **3.2 (P0)** Text extraction: `pypdf`, `python-docx`, plain read.
+- [ ] **3.3 (P0)** Chunking (size + overlap) with source metadata retained.
+- [ ] **3.4 (P0)** Embed chunks and store vectors in `sqlite-vec`.
+- [ ] **3.5 (P1)** List / search / delete knowledge entries (re-index on delete).
+
+## Epic 4 — RAG pipeline (triage → gate → generate)
+
+- [ ] **4.1 (P0)** **Triage**: classify email as answerable-from-KB /
+  needs-human / no-reply-needed.
+- [ ] **4.2 (P0)** **Safe-sender / loop guards**: skip automated senders & lists
+  (`Auto-Submitted`, `List-Id`, `Precedence: bulk`), other auto-replies, own
+  sent mail.
+- [ ] **4.3 (P0)** **Retrieve**: embed email (+ thread context), vector-search
+  top-k chunks.
+- [ ] **4.4 (P0)** **Confidence gate**: if top scores < threshold, do not draft;
+  flag "no confident answer, needs human."
+- [ ] **4.5 (P0)** **Grounded generation**: prompt to answer only from retrieved
+  context; structured output `{reply, sources_used, confidence, should_send}`.
+- [ ] **4.6 (P0)** Persist reply + cited sources; set email status.
+- [ ] **4.7 (P1)** Unit tests for triage, gate thresholds, and grounding/defer
+  behavior (mock LLM).
+
+## Epic 5 — Scheduler / orchestration
+
+- [ ] **5.1 (P0)** APScheduler job (~5 min): sync → triage → retrieve/gate →
+  generate → create Gmail draft (Pilot) / send (Auto if guards pass).
+- [ ] **5.2 (P0)** Single-flight / locking so overlapping runs don't double-process.
+- [ ] **5.3 (P1)** Per-run logging + error capture surfaced in the UI/logs.
+- [ ] **5.4 (P1)** Manual "Sync now" trigger from the dashboard.
+
+## Epic 6 — Web UI (dashboard, KB, settings)
+
+- [ ] **6.1 (P0)** Dashboard: email queue showing sender, subject, AI draft,
+  cited sources, confidence, status.
+- [ ] **6.2 (P0)** Actions: Approve & Send / Edit & Send / Discard (HTMX).
+- [ ] **6.3 (P0)** Knowledge Base page: upload, paste, list/search/delete.
+- [ ] **6.4 (P0)** Settings page: Gmail connect/disconnect, Pilot/Auto toggle,
+  confidence threshold, auto-send rules.
+- [ ] **6.5 (P1)** Responsive Tailwind styling; empty/error/loading states.
+
+## Epic 7 — Safety, send policy & hardening
+
+- [ ] **7.1 (P0)** Pilot mode: create native **Gmail draft**; nothing sends
+  without explicit action.
+- [ ] **7.2 (P0)** Gated Auto-send: send only when triage + confidence +
+  safe-sender guards all pass; otherwise fall back to draft.
+- [ ] **7.3 (P0)** Correct threading on send: `In-Reply-To` / `References` +
+  reuse `threadId`.
+- [ ] **7.4 (P1)** Encrypt OAuth tokens at rest; never log secrets.
+- [ ] **7.5 (P1)** Rate-limit / cost guard on embeddings + generation calls.
+
+## Epic 8 — Docs & developer experience
+
+- [ ] **8.1 (P0)** README: setup, Google Cloud OAuth app steps, OpenAI key,
+  run/test commands.
+- [ ] **8.2 (P0)** Update `CLAUDE.md` as real structure lands (replace "planned"
+  sections with actual layout, commands, modules, data flow).
+- [ ] **8.3 (P1)** `.env.example` with all required keys documented.
+
+---
+
+## Suggested build order (vertical slices)
+
+1. **Epics 0 + 1** — skeleton, config, DB schema.
+2. **Epic 2 (read-only)** — OAuth + incremental sync; confirm emails land in DB.
+3. **Epic 3** — knowledge base ingest + indexing.
+4. **Epic 4** — triage → gate → grounded generation (drafts stored, not sent).
+5. **Epic 6** — dashboard + KB + settings UI to review drafts.
+6. **Epics 5 + 7** — scheduler automation, Gmail drafts, gated Auto-send.
+7. **Epic 8** — docs polish.
+
+## Out of scope for MVP
+
+Non-Gmail providers, multi-user/teams, model fine-tuning, native mobile app,
+Gmail push (Pub/Sub) notifications, analytics/reporting.
