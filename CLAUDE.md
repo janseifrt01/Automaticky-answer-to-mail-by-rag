@@ -4,37 +4,82 @@ Guidance for AI assistants (Claude Code) working in this repository.
 
 ## Project
 
-**Automaticky-answer-to-mail-by-rag** — a system that automatically drafts
-replies to incoming email using Retrieval-Augmented Generation (RAG): relevant
-context is retrieved from a knowledge base and passed to an LLM to generate the
-reply.
+**RAG Mail Auto-Reply** — an intelligent email assistant that reads a Gmail
+inbox, retrieves relevant context from a user-provided knowledge base, and
+automatically drafts (or sends) replies using AI (Retrieval-Augmented
+Generation: search the knowledge base, then generate).
+
+Single-user per deployment. Web app only (fully responsive). Starts in
+**Pilot mode** (every draft is reviewed before sending) and can switch to
+**Auto mode** (send immediately) for specific categories/keywords.
 
 ## Status
 
 > **The repository is currently empty — no source code exists yet.**
-> This file is a minimal stub. The sections below describe the *intended*
-> direction, not implemented reality. Update this document as soon as real
-> code, structure, and workflows land so it reflects the actual codebase.
+> The sections below describe the *planned* design, not implemented reality.
+> Update this document as code lands so it reflects the actual codebase
+> (directory layout, real install/run/test commands, key modules, data flow).
 
-## Intended stack
+## How it works
 
-- **Language:** Python
-- **LLM:** Claude via the Anthropic SDK (`anthropic`). Default to the latest
-  capable models (e.g. Opus / Sonnet 4.x) for generation; a smaller/faster
-  model is fine for lightweight retrieval or classification steps.
-- **Retrieval:** a vector store + embeddings over the email knowledge base.
-- **Mail I/O:** IMAP/SMTP or the Gmail API for reading incoming mail and
-  sending drafts.
+1. **Connect Gmail** — link a Gmail account via Google OAuth2.
+2. **Build a knowledge base** — upload PDF/DOCX/TXT or paste text; content is
+   chunked, embedded, and indexed.
+3. **Poll inbox** — a cron job checks for new, unanswered emails every ~5 min.
+4. **Draft a reply** — embed the incoming email, vector-search the knowledge
+   base for relevant chunks, generate a reply with the LLM.
+5. **Review & send** — in Pilot mode the user approves / edits / discards each
+   draft; in Auto mode matching emails are sent automatically.
 
-## Conventions (to confirm once code exists)
+## Planned stack
 
-- Keep secrets (API keys, mail credentials) out of source — use environment
-  variables or a local `.env` that is gitignored.
-- Document setup, run, and test commands here once they exist.
+| Layer                 | Technology                                  |
+| --------------------- | ------------------------------------------- |
+| Database & backend    | Convex (real-time, serverless)              |
+| AI embeddings         | OpenAI `text-embedding-3-small`             |
+| AI reply generation   | OpenAI `gpt-4o-mini`                         |
+| Knowledge search      | Convex vector search                        |
+| Email integration     | Gmail API via Google OAuth2                 |
+| File parsing          | PDF / DOCX / TXT text extraction            |
+| Email polling         | Convex cron job (every 5 min)               |
+
+> **Provider note for AI assistants:** this project uses **OpenAI**, not
+> Claude/Anthropic. Use the OpenAI SDK and the model IDs above unless the
+> user explicitly changes the provider.
+
+## Planned data model (Convex schema)
+
+- **knowledge chunks** — chunked + embedded knowledge-base content.
+- **emails** — incoming messages with status (pending / approved / sent).
+- **replies** — AI-drafted replies linked to emails.
+- **settings** — Gmail connection, reply mode (Pilot/Auto), auto-send rules.
+
+## Planned UI
+
+- **Dashboard** — email queue; each item shows sender, subject, AI draft, and
+  status, with Approve & Send / Edit & Send / Discard actions.
+- **Knowledge Base** — upload files, paste text, view/search/delete entries.
+- **Settings** — Gmail OAuth connect/disconnect, Pilot vs Auto toggle,
+  auto-send rules by keyword/category.
+
+## Configuration & secrets
+
+Required keys (keep out of source control — use env vars / Convex env config):
+
+- **OpenAI API key** — embeddings + reply generation.
+- **Google Cloud credentials** (Client ID + Client Secret) — Gmail OAuth2.
+
+## Scope boundaries (explicitly out of scope for v1)
+
+- No non-Gmail providers (Outlook/IMAP may come later).
+- No multi-user / team accounts — single user per deployment.
+- No model fine-tuning — RAG (search + generate) only.
+- No native mobile app — responsive web only.
 
 ## For AI assistants
 
-- This stub reflects intent, not implementation. Before relying on any claim
-  here, verify against the actual files in the repo.
-- When real structure is added, replace this stub with concrete documentation:
-  directory layout, how to install/run/test, key modules, and data flow.
+- This document reflects intent, not implementation. Verify against actual
+  files before relying on any claim here.
+- Once real structure exists, replace the planned sections with concrete
+  documentation: directory layout, how to install/run/test, key modules, and
+  the end-to-end data flow.
