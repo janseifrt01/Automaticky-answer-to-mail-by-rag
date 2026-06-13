@@ -1,0 +1,19 @@
+[project]
+name = "rag-mail-auto-reply"
+version = "0.1.0"
+description = "Single-user RAG email auto-reply assistant (Gmail + OpenAI)"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q"
