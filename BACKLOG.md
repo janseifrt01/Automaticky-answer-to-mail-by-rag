@@ -43,18 +43,30 @@ dashboard, and Approve & Send. Auto-send works only when all guards pass.
 - [ ] **1.5 (P0)** `sync_state` table — last Gmail `historyId`.
 - [ ] **1.6 (P1)** Repository/data-access helpers + unit tests for each table.
 
-## Epic 2 — Gmail integration
+## Epic 2 — Mail integration (provider facade)
 
-- [ ] **2.1 (P0)** Google OAuth2 flow: connect/disconnect, minimal scopes
-  (read + send/modify + drafts), store **encrypted** tokens, auto-refresh.
-- [ ] **2.2 (P0)** Gmail client wrapper: list/get message, get thread, create
-  draft, send, with retry/backoff on transient errors.
-- [ ] **2.3 (P0)** Incremental sync via **History API (`historyId`)**; persist
-  `historyId`; full-sync fallback when history is expired.
-- [ ] **2.4 (P0)** Idempotency: skip already-processed `messageId`s
-  (no double-draft / double-send).
-- [ ] **2.5 (P0)** Parse messages: extract sender, subject, plaintext body,
-  and relevant headers; assemble thread context for prompting.
+> Mail access sits behind a provider-agnostic **`MailProvider`** facade
+> (receive + send); **Gmail/OAuth2** is the only v1 implementation, a future
+> Outlook/IMAP provider is a new class. Detailed plan: `docs/epic-2-mail-facade.md`.
+
+- [ ] **2.0 (P0)** `MailProvider` interface + provider-agnostic domain models
+  (`EmailMessage`, `OutgoingMessage`, `SyncResult`); no provider types leak.
+- [ ] **2.1 (P0)** Encrypted credential storage: `credentials` table +
+  `TokenCipher` (Fernet); tokens encrypted at rest.
+- [ ] **2.2 (P0)** Gmail OAuth2 flow: connect/callback/disconnect, minimal
+  scopes (`gmail.readonly` + `gmail.compose`), auto-refresh.
+- [ ] **2.3 (P0)** Gmail client wrapper: messages/threads/history/drafts with
+  retry/backoff on transient errors.
+- [ ] **2.4 (P0)** `GmailProvider`: implements `MailProvider`, maps Gmail API ⇄
+  domain models (plaintext body, selected headers, thread order).
+- [ ] **2.5 (P0)** Incremental receive via opaque cursor (Gmail `historyId`) +
+  full-sync fallback when the cursor is expired.
+- [ ] **2.6 (P0)** Send + create-draft with correct threading
+  (`In-Reply-To` / `References` / reuse `threadId`).
+- [ ] **2.7 (P0)** `get_mail_provider()` factory + config fields.
+- [ ] **2.8 (P0)** `sync_once()` ingestion: fetch → idempotent upsert into the
+  emails repo → persist new cursor (the unit Epic 5 schedules).
+- [ ] **2.9 (P1)** Tests + reusable `FakeMailProvider` for later epics.
 
 ## Epic 3 — Knowledge base ingestion
 

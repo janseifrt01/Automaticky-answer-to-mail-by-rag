@@ -68,6 +68,10 @@ Default behavior is **Pilot mode** (every draft is reviewed before sending);
 - **Provider stays pluggable**: keep one `embed()` / `generate()` interface so
   OpenAI ↔ Claude is a config swap, not a rewrite. OpenAI is the documented
   default unless the user changes it.
+- **Mail behind a `MailProvider` facade**: receiving/sending go through a
+  provider-agnostic interface (domain models, not Gmail types). Gmail/OAuth2 is
+  the only v1 implementation; a future Outlook/IMAP provider is a new class, not
+  a rewrite. See `docs/epic-2-mail-facade.md`.
 - **HTMX frontend**: live-ish queue + approve/edit/send actions with no
   separate JS build, which fits a single-user review dashboard.
 
