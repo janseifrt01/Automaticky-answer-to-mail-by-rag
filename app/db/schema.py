@@ -8,7 +8,8 @@ startup. Embedding dimension matches ``text-embedding-3-small`` (1536).
 from __future__ import annotations
 
 import sqlite3
-from datetime import UTC, datetime
+
+from app.db.common import now_iso
 
 EMBEDDING_DIM = 1536
 
@@ -98,15 +99,11 @@ _SEED_STATEMENTS: tuple[str, ...] = (
 )
 
 
-def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
-
-
 def bootstrap(conn: sqlite3.Connection) -> None:
     """Create all tables and seed single-row config. Idempotent."""
     with conn:  # single transaction; commits on success
         for statement in _SCHEMA_STATEMENTS:
             conn.execute(statement)
         conn.execute(_VECTOR_STATEMENT)
-        conn.execute(_SEED_STATEMENTS[0], (_now_iso(),))
+        conn.execute(_SEED_STATEMENTS[0], (now_iso(),))
         conn.execute(_SEED_STATEMENTS[1])

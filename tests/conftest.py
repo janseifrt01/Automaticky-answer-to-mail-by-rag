@@ -11,6 +11,7 @@ from collections.abc import Iterator
 import pytest
 from app.db.connection import connect
 from app.db.schema import EMBEDDING_DIM, bootstrap
+from app.db.vector_store import SqliteVecStore
 from fastapi.testclient import TestClient
 
 
@@ -24,6 +25,12 @@ def tmp_db(tmp_path) -> Iterator[sqlite3.Connection]:
         yield conn
     finally:
         conn.close()
+
+
+@pytest.fixture
+def vector_store(tmp_db) -> SqliteVecStore:
+    """A SqliteVecStore bound to the temp DB connection."""
+    return SqliteVecStore(tmp_db)
 
 
 @pytest.fixture
