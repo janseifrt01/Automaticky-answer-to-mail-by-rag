@@ -28,9 +28,22 @@ class Settings(BaseSettings):
     # --- OpenAI (required) ---
     openai_api_key: str
 
-    # --- Google OAuth2 / Gmail (populated when Epic 2 lands) ---
+    # --- Google OAuth2 / Gmail ---
     google_client_id: str = ""
     google_client_secret: str = ""
+
+    # --- Mail integration (Epic 2) ---
+    mail_provider: str = "gmail"
+    # Fernet key used to encrypt stored OAuth credentials. Required to connect
+    # a mailbox; not required just to boot the app. Generate with
+    # cryptography.fernet.Fernet.generate_key().
+    token_encryption_key: str = ""
+    google_redirect_uri: str = "http://localhost:8000/auth/gmail/callback"
+    # Minimal Gmail scopes: read messages/history + create drafts and send.
+    gmail_scopes: list[str] = [
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.compose",
+    ]
 
     # --- Storage ---
     db_path: str = "./data/app.db"

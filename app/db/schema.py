@@ -76,8 +76,16 @@ _SCHEMA_STATEMENTS: tuple[str, ...] = (
     """
     CREATE TABLE IF NOT EXISTS sync_state (
         id              INTEGER PRIMARY KEY CHECK (id = 1),
-        last_history_id TEXT,
+        last_history_id TEXT,                 -- opaque sync cursor (Gmail historyId)
         last_synced_at  TEXT
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS credentials (
+        provider   TEXT PRIMARY KEY,          -- e.g. 'gmail'
+        account    TEXT,                      -- account email
+        secret_enc BLOB NOT NULL,             -- Fernet-encrypted token JSON
+        updated_at TEXT NOT NULL
     );
     """,
 )

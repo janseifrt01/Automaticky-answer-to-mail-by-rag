@@ -12,6 +12,7 @@ import pytest
 from app.db.connection import connect
 from app.db.schema import EMBEDDING_DIM, bootstrap
 from app.db.vector_store import SqliteVecStore
+from app.mail.models import EmailMessage, OutgoingMessage, SyncResult
 from fastapi.testclient import TestClient
 
 
@@ -74,3 +75,80 @@ class FakeProvider:
 def fake_provider() -> FakeProvider:
     """An offline provider implementing the embed/generate interface."""
     return FakeProvider()
+
+
+class FakeMailProvider:
+    """In-memory MailProvider for tests (reusable by later epics).
+
+    ``fetch_new`` returns the configured inbox each call with a cursor derived
+    from the message count, so repeated syncs are naturally idempotent.
+    """
+
+    def __init__(
+        self,
+        messages: list[EmailMessage] | None = None,
+        *,
+        connected: bool = True,
+        email: str | None = "me@example.com",
+    ) -> None:
+        self._messages = messages or []
+        self._connected = connected
+        self._email = email
+        self.sent: list[OutgoingMessage] = []
+        self.drafts: list[OutgoingMessage] = []
+        self.sent_drafts: list[str] = []
+
+    def is_connected(self) -> bool:
+        return self._connected
+
+    def account_email(self) -> str | None:
+        return self._email
+
+    def fetch_new(self, cursor: str | None) -> SyncResult:
+        return SyncResult(
+            list(self._messages),
+            cursor=str(len(self._messages)),
+            full_sync=cursor is None,
+        )
+
+    def get_message(self, message_id: str) -> EmailMessage:
+        for m in self._messages:
+            if m.provider_message_id == message_id:
+                return m
+        raise KeyError(message_id)
+
+    def get_thread(self, thread_id: str) -> list[EmailMessage]:
+        return [m for m in self._messages if m.thread_id == thread_id]
+
+    def create_draft(self, message: OutgoingMessage) -> str:
+        self.drafts.append(message)
+        return f"draft-{len(self.drafts)}"
+
+    def send(self, message: OutgoingMessage) -> str:
+        self.sent.append(message)
+        return f"sent-{len(self.sent)}"
+
+    def send_draft(self, draft_id: str) -> str:
+        self.sent_drafts.append(draft_id)
+        return f"sent-{draft_id}"
+
+
+def make_email(message_id: str, *, thread_id: str = "t1", **kw) -> EmailMessage:
+    """Build an EmailMessage with sensible defaults for tests."""
+    return EmailMessage(
+        provider_message_id=message_id,
+        thread_id=thread_id,
+        rfc_message_id=kw.get("rfc_message_id", f"<{message_id}@mail>"),
+        sender=kw.get("sender", "alice@example.com"),
+        recipients=kw.get("recipients", ["me@example.com"]),
+        subject=kw.get("subject", "Subject"),
+        body_text=kw.get("body_text", "Body"),
+        headers=kw.get("headers", {}),
+        received_at=kw.get("received_at", "2026-01-01T00:00:00+00:00"),
+    )
+
+
+@pytest.fixture
+def fake_mail_provider() -> FakeMailProvider:
+    """A connected in-memory mail provider with two messages."""
+    return FakeMailProvider([make_email("m1"), make_email("m2", thread_id="t2")])
