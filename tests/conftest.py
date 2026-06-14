@@ -71,6 +71,23 @@ class FakeProvider:
         return "fake reply"
 
 
+class ScriptedProvider(FakeProvider):
+    """Offline provider whose ``generate`` returns queued responses in order.
+
+    Embeddings are inherited (deterministic). Each ``generate`` call pops the
+    next scripted response; records calls for assertions.
+    """
+
+    def __init__(self, responses: list[str] | None = None, dim: int = EMBEDDING_DIM):
+        super().__init__(dim)
+        self.responses = list(responses or [])
+        self.calls: list[tuple[str, str]] = []
+
+    def generate(self, system: str, user: str, *, json_schema: dict | None = None):
+        self.calls.append((system, user))
+        return self.responses.pop(0) if self.responses else "{}"
+
+
 @pytest.fixture
 def fake_provider() -> FakeProvider:
     """An offline provider implementing the embed/generate interface."""
