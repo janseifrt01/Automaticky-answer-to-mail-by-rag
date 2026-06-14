@@ -32,9 +32,13 @@ neither epic redefines:
 3. **The store** — Epic 1's `knowledge` repo + `VectorStore` is the only way in
    and out. Epic 3 calls `add_chunk` / `delete_*`; Epic 4 calls `search`.
 
-> **No schema changes** are needed: `knowledge_chunks`, `knowledge_vectors`,
-> `emails.triage_category/status`, and `replies.{confidence,sources_used,
-> should_send}` already exist from Epic 1.
+> **One additive schema change** (forward-compat seam for multi-stream
+> routing, see `docs/scaling-and-routing.md`): add a nullable `namespace`
+> column to `knowledge_chunks` (default `"default"`). Everything else —
+> `knowledge_vectors`, `emails.triage_category/status`, and
+> `replies.{confidence,sources_used,should_send}` — already exists from Epic 1.
+> The MVP uses the single `"default"` namespace; a later epic adds the
+> `streams` table that maps topics → namespaces + per-stream workflow.
 
 ## Proposed module layout
 ```
@@ -71,7 +75,9 @@ class RetrievedChunk:
     score: float        # cosine similarity in [0, 1]
     distance: float     # raw L2 from sqlite-vec
 
-# triage.py
+# triage.py — category is an OPEN string (stored as TEXT). The enum below is
+# just the MVP's known set; a later multi-stream epic adds stream names as
+# additional categories without a code/schema change.
 class TriageCategory(str, Enum):
     ANSWERABLE = "answerable"
     NEEDS_HUMAN = "needs_human"
@@ -79,7 +85,7 @@ class TriageCategory(str, Enum):
 
 @dataclass(frozen=True)
 class TriageResult:
-    category: TriageCategory
+    category: str   # one of TriageCategory today; open for future stream names
     reason: str
 
 # generate.py
@@ -112,11 +118,18 @@ chunks embedded and indexed; list/search/delete works; offline tests pass.
   tests (short text → 1 chunk; overlap correct; deterministic count).
 
 ### 3.3 (P0) Ingest service (`ingest.py`)
-- `ingest_document(conn, store, provider, *, source_type, source_name, text)`
-  → chunk → `provider.embed(batch)` → `knowledge.add_chunk(...)` per chunk;
-  returns chunk count. Idempotency: re-ingesting the same `source_name`
-  replaces it (`delete_by_source` first). **Acceptance:** ingest with the fake
-  provider stores N chunks + N vectors; re-ingest doesn't duplicate.
+- Add the nullable `namespace` column to `knowledge_chunks` (default
+  `"default"`) in `schema.py`; thread an optional `namespace="default"` param
+  through the `knowledge` repo (`add_chunk`, `list_chunks`, `delete_by_source`,
+  `search`). No production DB exists yet, so updating the `CREATE TABLE` is
+  sufficient (no migration needed).
+- `ingest_document(conn, store, provider, *, source_type, source_name, text,
+  namespace="default")` → chunk → `provider.embed(batch)` →
+  `knowledge.add_chunk(...)` per chunk; returns chunk count. Idempotency:
+  re-ingesting the same `(namespace, source_name)` replaces it
+  (`delete_by_source` first). **Acceptance:** ingest with the fake provider
+  stores N chunks + N vectors; re-ingest doesn't duplicate; chunks carry the
+  namespace.
 
 ### 3.4 (P0) KB management routes (`routers/knowledge.py`)
 - `POST /kb/upload` (multipart file), `POST /kb/paste` (json text+label),
@@ -158,10 +171,11 @@ draft/send is Epic 7.
   the category parses; malformed output defaults safely to `needs_human`.
 
 ### 4.3 (P0) Retrieval (`retrieval.py`)
-- `retrieve(conn, store, provider, query_text, k) -> list[RetrievedChunk]`:
-  `provider.embed([query])` → `knowledge.search` → wrap with
-  `distance_to_score`. **Acceptance:** nearest chunk has the highest score;
-  ordering matches distance.
+- `retrieve(conn, store, provider, query_text, k, namespace="default") ->
+  list[RetrievedChunk]`: `provider.embed([query])` → `knowledge.search`
+  (filtered to `namespace`) → wrap with `distance_to_score`. **Acceptance:**
+  nearest chunk has the highest score; ordering matches distance; results are
+  scoped to the namespace.
 
 ### 4.4 (P0) Confidence gate integration
 - In the pipeline: if no chunks or `top.score < threshold`, do **not** generate;
@@ -199,7 +213,8 @@ scoring/order, gate behavior, generation parsing + prompt grounding, and a
   `settings.confidence_threshold`.
 - [ ] Both paths go through the Epic 1 `knowledge` repo + `VectorStore`.
 - [ ] Triage guards consume the headers Epic 2 surfaces (no re-parsing).
-- [ ] Pipeline persists through existing repos; **no schema changes**.
+- [ ] KB carries a `namespace` (default `"default"`); retrieval filters by it.
+- [ ] Triage category is an open string (TEXT), not a closed enum in the DB.
 - [ ] Pipeline stops at a stored draft reply; sending is Epic 7.
 
 ## Risks / decisions

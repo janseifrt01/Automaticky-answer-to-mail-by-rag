@@ -104,7 +104,9 @@ Default behavior is **Pilot mode** (every draft is reviewed before sending);
 
 ## Planned data model (SQLite)
 
-- **knowledge_chunks** — chunked KB content + embedding + source file/metadata.
+- **knowledge_chunks** — chunked KB content + embedding + source file/metadata,
+  plus a `namespace` (default `"default"`) — a forward-compat seam for future
+  per-topic streams (see `docs/scaling-and-routing.md`).
 - **emails** — incoming message (`messageId`, `threadId`, sender, subject,
   body, headers, triage category) and status
   (pending / drafted / approved / sent / skipped).
