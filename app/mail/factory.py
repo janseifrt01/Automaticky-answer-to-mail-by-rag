@@ -18,6 +18,11 @@ def build_gmail_client(conn: sqlite3.Connection, settings: Settings):
     from app.mail.gmail import auth
     from app.mail.gmail.client import GmailClient
 
+    # No stored credentials → not connected. Check first so a missing
+    # encryption key doesn't error when there's nothing to decrypt anyway.
+    if cred_repo.load(conn, auth.PROVIDER) is None:
+        return None
+
     cipher = TokenCipher(settings.token_encryption_key)
     creds = auth.load_credentials(conn, settings, cipher)
     if creds is None:

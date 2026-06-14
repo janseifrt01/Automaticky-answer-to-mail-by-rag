@@ -39,6 +39,7 @@ def client(tmp_path, monkeypatch) -> Iterator[TestClient]:
     """A TestClient whose app uses a temp DB (via DB_PATH override)."""
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setenv("DB_PATH", str(tmp_path / "app.db"))
+    monkeypatch.setenv("SCHEDULER_ENABLED", "false")  # no background job in tests
 
     # Import after env is set so settings pick up the temp DB path.
     from app.config import get_settings

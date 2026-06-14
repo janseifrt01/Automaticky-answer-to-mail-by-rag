@@ -36,6 +36,9 @@ def connect(db_path: str) -> sqlite3.Connection:
 
     conn.execute("PRAGMA journal_mode = WAL;")
     conn.execute("PRAGMA foreign_keys = ON;")
+    # Wait (up to 5s) for a lock instead of raising "database is locked" when
+    # concurrent scheduler workers write the same file.
+    conn.execute("PRAGMA busy_timeout = 5000;")
     return conn
 
 

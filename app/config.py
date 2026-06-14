@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     chunk_size: int = 1000
     chunk_overlap: int = 150
     retrieval_top_k: int = 5
+    # Scheduler / async processing
+    scheduler_enabled: bool = True
+    max_concurrency: int = 4
 
     model_config = SettingsConfigDict(
         env_file=".env",
