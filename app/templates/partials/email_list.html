@@ -1,0 +1,11 @@
+{% if not cards %}
+  <p class="text-gray-500 py-8 text-center">No emails yet — connect Gmail and Sync now.</p>
+{% else %}
+  <div class="space-y-3">
+    {% for card in cards %}
+      {% with email = card.email, reply = card.reply, edit = False %}
+        {% include "partials/email_card.html" %}
+      {% endwith %}
+    {% endfor %}
+  </div>
+{% endif %}

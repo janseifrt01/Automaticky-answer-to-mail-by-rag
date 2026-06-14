@@ -40,11 +40,16 @@ uvicorn app.main:app --reload
 ```
 
 The app opens the SQLite database (creating `./data/app.db`), loads
-`sqlite-vec`, and bootstraps the schema on startup. Check it's alive:
+`sqlite-vec`, bootstraps the schema, and starts the background sync scheduler
+on startup. Check it's alive:
 
 ```bash
 curl http://127.0.0.1:8000/health      # -> {"status":"ok"}
 ```
+
+Then open the web UI at <http://127.0.0.1:8000/> — the **Dashboard** (review
+queue), **Knowledge Base** (upload/paste/delete), and **Settings** (Gmail
+connect, Pilot/Auto, confidence threshold).
 
 ## Test
 
@@ -59,6 +64,9 @@ Tests run fully offline (no OpenAI/Gmail network calls).
 ```
 app/
   config.py            # pydantic-settings configuration
+  templates/           # Jinja2 + HTMX UI (dashboard, KB, settings)
+  scheduler/           # async sync/process cycle + APScheduler
+  rag/                 # ingest + triage/retrieve/gate/generate pipeline
   main.py              # FastAPI app factory + startup bootstrap
   db/                  # connection (sqlite-vec) + schema bootstrap
   providers/           # embed()/generate() interface + OpenAI impl

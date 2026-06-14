@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from app.config import get_settings
 from app.db.connection import connect
 from app.db.schema import bootstrap
-from app.routers import auth, health, knowledge, sync
+from app.routers import auth, health, knowledge, sync, web
 from app.scheduler import service
 
 
@@ -39,6 +39,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(knowledge.router)
     app.include_router(sync.router)
+    app.include_router(web.router)
     return app
 
 

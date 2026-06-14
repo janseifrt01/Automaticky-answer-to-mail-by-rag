@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% set nav = "settings" %}
+
+{% block content %}
+<h1 class="text-lg font-semibold mb-4">Settings</h1>
+
+<div class="bg-white border rounded p-4 mb-4">
+  <h2 class="font-medium mb-2">Gmail</h2>
+  {% if settings.gmail_connected %}
+    <p class="text-sm">Connected as <span class="font-medium">{{ settings.gmail_email or "?" }}</span>
+      <span class="text-green-600">✓</span></p>
+    <form hx-post="/auth/gmail/disconnect" hx-swap="none" class="mt-2">
+      <button class="px-3 py-1 rounded border text-sm text-red-700">Disconnect</button>
+    </form>
+  {% else %}
+    <p class="text-sm">Not connected.</p>
+    <a href="/auth/gmail/connect" class="inline-block mt-2 px-3 py-1 rounded bg-blue-600 text-white text-sm">Connect Gmail</a>
+  {% endif %}
+</div>
+
+{% include "partials/settings_form.html" %}
+{% endblock %}

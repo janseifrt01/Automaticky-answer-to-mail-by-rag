@@ -1,0 +1,20 @@
+<div id="status-bar" class="bg-gray-100 border-b text-sm">
+  <div class="max-w-5xl mx-auto px-4 py-2 flex flex-wrap items-center gap-4">
+    {% if settings.gmail_connected %}
+      <span>Gmail: <span class="font-medium">{{ settings.gmail_email or "connected" }}</span> <span class="text-green-600">✓</span></span>
+    {% else %}
+      <span>Gmail: <span class="text-amber-600">not connected</span>
+        <a href="/auth/gmail/connect" class="text-blue-700 hover:underline">Connect</a></span>
+    {% endif %}
+    <span>Mode: <span class="font-medium uppercase">{{ settings.reply_mode }}</span></span>
+    <button class="ml-auto px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+            hx-post="/actions/sync" hx-target="#status-bar" hx-swap="outerHTML"
+            hx-indicator="#sync-spin" {% if running %}disabled{% endif %}>
+      Sync now
+    </button>
+    <span id="sync-spin" class="htmx-indicator">…</span>
+    {% if last_run %}
+      <span class="text-gray-500">last: {{ last_run.drafted }} drafted, {{ last_run.needs_human }} need human, {{ last_run.skipped }} skipped{% if last_run.errors %}, {{ last_run.errors }} errors{% endif %}</span>
+    {% endif %}
+  </div>
+</div>

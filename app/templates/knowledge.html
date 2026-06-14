@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% set nav = "knowledge" %}
+
+{% block statusbar %}{% include "partials/status_bar.html" %}{% endblock %}
+
+{% block content %}
+<h1 class="text-lg font-semibold mb-4">Knowledge Base</h1>
+
+<div class="grid md:grid-cols-2 gap-4 mb-6">
+  <div class="bg-white border rounded p-4">
+    <h2 class="font-medium mb-2">Upload file</h2>
+    <form hx-post="/knowledge/upload" hx-target="#kb-sources" hx-swap="outerHTML"
+          hx-encoding="multipart/form-data">
+      <input type="file" name="file" accept=".pdf,.docx,.txt,.md" class="text-sm" required>
+      <button class="mt-2 px-3 py-1 rounded bg-blue-600 text-white text-sm">Add</button>
+    </form>
+    <p class="text-xs text-gray-500 mt-1">PDF, DOCX, TXT, MD</p>
+  </div>
+  <div class="bg-white border rounded p-4">
+    <h2 class="font-medium mb-2">Paste text</h2>
+    <form hx-post="/knowledge/paste" hx-target="#kb-sources" hx-swap="outerHTML">
+      <input name="label" placeholder="Label" class="w-full border rounded p-1 text-sm mb-2" required>
+      <textarea name="text" rows="3" placeholder="Text…" class="w-full border rounded p-1 text-sm" required></textarea>
+      <button class="mt-2 px-3 py-1 rounded bg-blue-600 text-white text-sm">Add</button>
+    </form>
+  </div>
+</div>
+
+{% include "partials/kb_sources.html" %}
+{% endblock %}

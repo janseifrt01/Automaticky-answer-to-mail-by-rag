@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RAG Mail Auto-Reply</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+</head>
+<body class="bg-gray-50 text-gray-900">
+  <header class="bg-white border-b">
+    <nav class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-6">
+      <span class="font-semibold">RAG Mail Auto-Reply</span>
+      <a href="/" class="hover:underline {% if nav == 'dashboard' %}font-semibold text-blue-700{% endif %}">Dashboard</a>
+      <a href="/knowledge" class="hover:underline {% if nav == 'knowledge' %}font-semibold text-blue-700{% endif %}">Knowledge Base</a>
+      <a href="/settings" class="hover:underline {% if nav == 'settings' %}font-semibold text-blue-700{% endif %}">Settings</a>
+    </nav>
+    {% block statusbar %}{% endblock %}
+  </header>
+  <main class="max-w-5xl mx-auto px-4 py-6">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

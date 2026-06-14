@@ -1,0 +1,29 @@
+<div id="kb-sources" class="bg-white border rounded p-4">
+  <h2 class="font-medium mb-2">Sources</h2>
+  {% if message %}<p class="text-sm text-green-700 mb-2">{{ message }}</p>{% endif %}
+  {% if error %}<p class="text-sm text-red-700 mb-2">{{ error }}</p>{% endif %}
+  {% if not sources %}
+    <p class="text-gray-500 text-sm">No knowledge yet — upload a file or paste text.</p>
+  {% else %}
+    <table class="w-full text-sm">
+      <thead><tr class="text-left text-gray-500">
+        <th class="py-1">Source</th><th>Type</th><th>Chunks</th><th></th>
+      </tr></thead>
+      <tbody>
+        {% for s in sources %}
+          <tr class="border-t">
+            <td class="py-1">{{ s.source_name }}</td>
+            <td>{{ s.source_type }}</td>
+            <td>{{ s.chunk_count }}</td>
+            <td class="text-right">
+              <button class="text-red-700 hover:underline"
+                      hx-post="/knowledge/{{ s.source_name }}/delete"
+                      hx-target="#kb-sources" hx-swap="outerHTML"
+                      hx-confirm="Delete {{ s.source_name }}?">Delete</button>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>

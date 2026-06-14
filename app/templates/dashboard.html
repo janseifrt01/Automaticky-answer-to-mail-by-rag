@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% set nav = "dashboard" %}
+
+{% block statusbar %}{% include "partials/status_bar.html" %}{% endblock %}
+
+{% block content %}
+<div class="flex items-center gap-2 mb-4">
+  {% for label, status in filters %}
+    <button class="px-3 py-1 rounded border bg-white hover:bg-gray-100 text-sm"
+            hx-get="/emails{% if status %}?status={{ status }}{% endif %}"
+            hx-target="#queue" hx-swap="innerHTML">{{ label }}</button>
+  {% endfor %}
+</div>
+
+<div id="queue" hx-get="/emails" hx-trigger="every 15s" hx-swap="innerHTML">
+  {% include "partials/email_list.html" %}
+</div>
+{% endblock %}
