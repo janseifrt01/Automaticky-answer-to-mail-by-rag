@@ -123,6 +123,10 @@ dashboard, and Approve & Send. Auto-send works only when all guards pass.
 
 ## Epic 6 — Web UI (dashboard, KB, settings)
 
+> FastAPI + Jinja2 + HTMX + Tailwind (no JS build). Design: `docs/epic-6-ui-design.md`.
+> The **send** action behavior is delivered by Epic 7; E6 ships the queue,
+> review/edit/approve/discard, KB management, and settings.
+
 - [ ] **6.1 (P0)** Dashboard: email queue showing sender, subject, AI draft,
   cited sources, confidence, status.
 - [ ] **6.2 (P0)** Actions: Approve & Send / Edit & Send / Discard (HTMX).
