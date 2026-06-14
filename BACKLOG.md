@@ -100,13 +100,26 @@ dashboard, and Approve & Send. Auto-send works only when all guards pass.
 - [ ] **4.7 (P1)** Tests: guards, triage, retrieval scoring, gate, generation,
   end-to-end (mock LLM).
 
-## Epic 5 — Scheduler / orchestration
+## Epic 5 — Scheduler / async orchestration
 
-- [ ] **5.1 (P0)** APScheduler job (~5 min): sync → triage → retrieve/gate →
-  generate → create Gmail draft (Pilot) / send (Auto if guards pass).
-- [ ] **5.2 (P0)** Single-flight / locking so overlapping runs don't double-process.
-- [ ] **5.3 (P1)** Per-run logging + error capture surfaced in the UI/logs.
-- [ ] **5.4 (P1)** Manual "Sync now" trigger from the dashboard.
+> Async, non-blocking cycle tying `sync_once` (E2) → `process_email` (E4).
+> Detailed plan: `docs/epic-5-scheduler.md`. Sending (drafts/auto) is Epic 7;
+> this epic produces drafted reply rows.
+
+- [ ] **5.0 (P0)** `apscheduler` dep + config (`scheduler_enabled`,
+  `max_concurrency`).
+- [ ] **5.1 (P0)** Connection safety: `busy_timeout` + per-task connection
+  factory (own connection per concurrent worker).
+- [ ] **5.2 (P0)** `run_cycle`: sync → guard-skip → sequential Gmail thread
+  fetch → **concurrent** `process_email` (bounded `Semaphore`), off the event
+  loop via `asyncio.to_thread`.
+- [ ] **5.3 (P0)** Single-flight (asyncio.Lock + APScheduler
+  `max_instances=1`/`coalesce`).
+- [ ] **5.4 (P0)** `AsyncIOScheduler` started/stopped in app lifespan.
+- [ ] **5.5 (P1)** Manual `POST /sync/now` + `GET /sync/status`.
+- [ ] **5.6 (P0)** Per-email error isolation (`status='error'`, logged).
+- [ ] **5.7 (P1)** Async tests: cycle outcomes, single-flight, error isolation,
+  concurrency.
 
 ## Epic 6 — Web UI (dashboard, KB, settings)
 
