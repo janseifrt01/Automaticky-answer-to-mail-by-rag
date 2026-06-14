@@ -137,14 +137,20 @@ dashboard, and Approve & Send. Auto-send works only when all guards pass.
 
 ## Epic 7 — Safety, send policy & hardening
 
-- [ ] **7.1 (P0)** Pilot mode: create native **Gmail draft**; nothing sends
-  without explicit action.
-- [ ] **7.2 (P0)** Gated Auto-send: send only when triage + confidence +
-  safe-sender guards all pass; otherwise fall back to draft.
-- [ ] **7.3 (P0)** Correct threading on send: `In-Reply-To` / `References` +
-  reuse `threadId`.
-- [ ] **7.4 (P1)** Encrypt OAuth tokens at rest; never log secrets.
-- [ ] **7.5 (P1)** Rate-limit / cost guard on embeddings + generation calls.
+> The only epic that sends mail. Detailed plan: `docs/epic-7-send.md`. Sends are
+> sequential (httplib2 not thread-safe): UI request thread or the cycle's
+> dispatch phase, never inside concurrent workers.
+
+- [ ] **7.0 (P0)** Reply builder: email+reply → `OutgoingMessage` with recipient,
+  `Re:` subject, and `In-Reply-To`/`References`/`threadId`.
+- [ ] **7.1 (P0)** `delete_draft` on the `MailProvider` facade (+ Gmail + fake).
+- [ ] **7.2 (P0)** Send service: `create_gmail_draft`, idempotent `send_reply`,
+  `should_auto_send` gate.
+- [ ] **7.3 (P0)** Cycle dispatch (sequential): Pilot Gmail drafts vs gated
+  Auto-send; `sent` count in the summary.
+- [ ] **7.4 (P0)** UI "Approve & Send" → `send_reply`; `sent` state + errors.
+- [ ] **7.5 (P1)** Hardening: no secrets/PII logged; confirm send idempotency.
+- [ ] **7.6 (P1)** Rate-limit / cost guard on embeddings + generation calls.
 
 ## Epic 8 — Docs & developer experience
 
