@@ -154,11 +154,11 @@ dashboard, and Approve & Send. Auto-send works only when all guards pass.
 
 ## Epic 8 — Docs & developer experience
 
-- [ ] **8.1 (P0)** README: setup, Google Cloud OAuth app steps, OpenAI key,
-  run/test commands.
-- [ ] **8.2 (P0)** Update `CLAUDE.md` as real structure lands (replace "planned"
-  sections with actual layout, commands, modules, data flow).
-- [ ] **8.3 (P1)** `.env.example` with all required keys documented.
+- [x] **8.1 (P0)** README: setup, Google Cloud OAuth app steps, OpenAI key,
+  run/test commands, first-use flow.
+- [x] **8.2 (P0)** Update `CLAUDE.md` to implemented reality (layout, commands,
+  key modules, data flow, conventions).
+- [x] **8.3 (P1)** `.env.example` with all required keys documented.
 
 ---
 

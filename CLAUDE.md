@@ -16,10 +16,11 @@ Default behavior is **Pilot mode** (every draft is reviewed before sending);
 
 ## Status
 
-> **The repository is currently empty — no source code exists yet.**
-> The sections below describe the *agreed design*, not implemented reality.
-> Update this document as code lands so it reflects the actual codebase
-> (directory layout, real install/run/test commands, key modules, data flow).
+> **MVP implemented (Epics 0–7).** The full loop works end-to-end: scheduled
+> Gmail sync → triage → retrieve → confidence gate → grounded draft →
+> review/edit → send (Pilot) or gated Auto-send. ~133 tests, all offline.
+> This document now reflects the actual codebase; keep it in sync as code
+> changes. Per-epic design notes live in `docs/`; the task list in `BACKLOG.md`.
 
 ## How it works (pipeline)
 
@@ -42,7 +43,7 @@ Default behavior is **Pilot mode** (every draft is reviewed before sending);
    dashboard with cited sources; user approves / edits / discards. Auto: send
    only if triage + confidence + safe-sender guards all pass.
 
-## Planned stack (Python, local single-user)
+## Stack (Python, local single-user)
 
 | Layer                 | Technology                                                        |
 | --------------------- | ---------------------------------------------------------------- |
@@ -75,6 +76,77 @@ Default behavior is **Pilot mode** (every draft is reviewed before sending);
 - **HTMX frontend**: live-ish queue + approve/edit/send actions with no
   separate JS build, which fits a single-user review dashboard.
 
+## Codebase layout & key modules
+
+```
+app/
+  main.py              # app factory + lifespan: opens DB, bootstraps, starts scheduler
+  config.py            # Settings (pydantic-settings); get_settings()
+  deps.py              # FastAPI deps: get_db / get_embedder / get_mail / get_vector_store
+  db/
+    connection.py      # connect(): sqlite-vec load, WAL, busy_timeout, check_same_thread
+    schema.py          # all DDL + idempotent bootstrap()
+    repositories/      # one module per table (knowledge, emails, replies, settings, sync_state, credentials)
+    vector_store/      # VectorStore protocol + SqliteVecStore (vec0 KNN)
+  providers/           # EmbeddingProvider/LLMProvider protocols + OpenAIProvider + get_provider()
+  mail/
+    base.py models.py  # MailProvider facade + domain models (EmailMessage/OutgoingMessage/SyncResult)
+    factory.py         # get_mail_provider() / build_gmail_client()
+    crypto.py          # TokenCipher (Fernet) for credential encryption
+    ingest.py          # sync_once(): fetch new mail → emails repo (idempotent)
+    sender.py          # build_outgoing / send_reply / create_gmail_draft / should_auto_send / dispatch
+    gmail/             # auth (OAuth2), client (API wrapper + retry), provider (mapping)
+  rag/
+    parsers.py chunking.py ingest.py   # KB ingestion (write side)
+    scoring.py         # distance↔similarity + confidence gate (shared seam)
+    retrieval.py guards.py triage.py generate.py pipeline.py   # read side
+  scheduler/
+    runner.py          # run_cycle(): async sync → guard → concurrent process → sequential dispatch
+    service.py         # AsyncIOScheduler + run_once()
+  routers/             # health, auth (OAuth), knowledge (JSON KB API), sync, web (HTML/HTMX)
+  templates/           # Jinja2 + HTMX UI
+tests/                 # pytest; conftest.py has offline fakes (FakeProvider, FakeMailProvider, ScriptedProvider)
+docs/                  # per-epic design notes
+```
+
+## Install / run / test
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+cp .env.example .env            # set OPENAI_API_KEY, TOKEN_ENCRYPTION_KEY, Google creds
+uvicorn app.main:app --reload   # UI at http://127.0.0.1:8000/
+pytest                          # full suite, fully offline
+ruff check .                    # lint (line length 88; B008 ignored for FastAPI Depends)
+```
+
+See `README.md` for the Google Cloud OAuth setup steps.
+
+## Data flow (end-to-end)
+
+`scheduler.run_cycle` (every ~5 min, or `POST /sync/now`):
+1. `mail.ingest.sync_once` → new emails stored `pending` (idempotent on `messageId`).
+2. **Sequential:** `rag.guards.check_guards` skips bulk/auto mail; for survivors,
+   fetch Gmail thread context (httplib2 isn't thread-safe → sequential).
+3. **Concurrent** (`asyncio.to_thread`, bounded by `max_concurrency`):
+   `rag.pipeline.process_email` = triage → retrieve → gate → generate → persist a
+   `replies` row + set email `drafted`/`needs_human`/`skipped`. This phase is
+   mail-agnostic (OpenAI + SQLite only), so it parallelizes safely.
+4. **Sequential dispatch** (`mail.sender.dispatch`): Pilot → create a Gmail draft;
+   Auto → `send_reply` if `should_auto_send` passes.
+Pilot review happens in the web dashboard; "Approve & Send" calls `sender.send_reply`.
+
+## Conventions
+
+- **Repositories** take a `sqlite3.Connection` (injected), one transaction per
+  write, return plain dicts; JSON columns (de)serialized at the repo boundary.
+- **Mail vs LLM threading:** Gmail/httplib2 calls are always **sequential**;
+  only OpenAI + DB work runs **concurrently**. Never share a Gmail service/conn
+  across threads — each concurrent worker opens its own SQLite connection.
+- **Offline tests:** no network. Use the fakes in `tests/conftest.py`; override
+  `get_embedder` / `get_mail` via `app.dependency_overrides` for route tests.
+- **Provider stays OpenAI** by default (not Claude) — see below.
+
 ## RAG & generation rules
 
 - **Triage before retrieval** — classify the email; skip mail that needs a
@@ -102,21 +174,24 @@ Default behavior is **Pilot mode** (every draft is reviewed before sending);
   without an explicit action.
 - **Minimal OAuth scopes** and OAuth tokens encrypted at rest.
 
-## Planned data model (SQLite)
+## Data model (SQLite)
 
-- **knowledge_chunks** — chunked KB content + embedding + source file/metadata,
-  plus a `namespace` (default `"default"`) — a forward-compat seam for future
-  per-topic streams (see `docs/scaling-and-routing.md`).
+- **knowledge_chunks** — chunked KB content + source/metadata, plus a
+  `namespace` (default `"default"`) — a forward-compat seam for future per-topic
+  streams (see `docs/scaling-and-routing.md`). Embeddings live in the
+  **knowledge_vectors** `vec0` virtual table (1536-dim), keyed by `chunk_id`.
 - **emails** — incoming message (`messageId`, `threadId`, sender, subject,
-  body, headers, triage category) and status
-  (pending / drafted / approved / sent / skipped).
+  body, headers, triage category) and status (`pending` / `triaged` /
+  `drafted` / `needs_human` / `approved` / `sent` / `skipped` / `discarded` /
+  `error`).
 - **replies** — AI draft linked to an email: text, `sources_used`,
-  `confidence`, `should_send`, Gmail draft id.
-- **settings** — Gmail connection, reply mode (Pilot/Auto), confidence
-  threshold, auto-send rules (keywords/categories).
-- **sync_state** — last Gmail `historyId` for incremental sync.
+  `confidence`, `should_send`, `gmail_draft_id`, status.
+- **settings** — single row: Gmail connection, reply mode (Pilot/Auto),
+  confidence threshold, auto-send rules (keywords/categories).
+- **sync_state** — single row: last Gmail `historyId` (opaque sync cursor).
+- **credentials** — per-provider encrypted OAuth token blob (Fernet).
 
-## Planned UI
+## UI
 
 - **Dashboard** — email queue; each item shows sender, subject, AI draft,
   cited sources, confidence, and status, with Approve & Send / Edit & Send /
@@ -141,10 +216,12 @@ Required keys (keep out of source control — use a gitignored `.env`):
 
 ## For AI assistants
 
-- This document reflects the agreed design, not implementation. Verify against
-  actual files before relying on any claim here.
-- Once real structure exists, replace the planned sections with concrete
-  documentation: directory layout, how to install/run/test, key modules, and
-  the end-to-end data flow.
+- This document now reflects the implemented codebase, but still verify against
+  actual files before relying on any claim — keep it updated as code changes.
+- **Run `pytest` and `ruff check .` after changes**; tests are offline by
+  design — don't introduce real network calls into them (use the fakes).
+- Respect the **mail-sequential / LLM-concurrent** boundary and the **provider
+  facades** (`providers`, `mail.MailProvider`, `db.vector_store.VectorStore`) —
+  new providers are new classes, not edits to callers.
 - This project's app calls **OpenAI** by default (not Claude); use the OpenAI
   SDK and documented model IDs unless the user changes the provider.
