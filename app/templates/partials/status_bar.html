@@ -14,7 +14,7 @@
     </button>
     <span id="sync-spin" class="htmx-indicator">…</span>
     {% if last_run %}
-      <span class="text-gray-500">last: {{ last_run.drafted }} drafted, {{ last_run.needs_human }} need human, {{ last_run.skipped }} skipped{% if last_run.errors %}, {{ last_run.errors }} errors{% endif %}</span>
+      <span class="text-gray-500">last: {{ last_run.drafted }} drafted{% if last_run.sent %}, {{ last_run.sent }} sent{% endif %}, {{ last_run.needs_human }} need human, {{ last_run.skipped }} skipped{% if last_run.errors %}, {{ last_run.errors }} errors{% endif %}</span>
     {% endif %}
   </div>
 </div>

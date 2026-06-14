@@ -8,6 +8,7 @@ approved and queues it.
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from pathlib import Path
 
@@ -21,10 +22,14 @@ from app.db.repositories import knowledge as kb_repo
 from app.db.repositories import replies as replies_repo
 from app.db.repositories import settings as settings_repo
 from app.db.vector_store import SqliteVecStore
-from app.deps import get_db, get_embedder, get_vector_store
+from app.deps import get_db, get_embedder, get_mail, get_vector_store
+from app.mail import sender
+from app.mail.base import MailProvider
 from app.providers.base import Provider
 from app.rag import ingest, parsers
 from app.scheduler import runner, service
+
+logger = logging.getLogger(__name__)
 
 TEMPLATES = Jinja2Templates(
     directory=str(Path(__file__).resolve().parent.parent / "templates")
@@ -132,13 +137,29 @@ def save_reply(
 
 @router.post("/emails/{email_id}/approve", response_class=HTMLResponse)
 def approve(
-    request: Request, email_id: int, conn: sqlite3.Connection = Depends(get_db)
+    request: Request,
+    email_id: int,
+    conn: sqlite3.Connection = Depends(get_db),
+    mail: MailProvider = Depends(get_mail),
 ):
+    """Approve & Send: send the current reply via the mail provider."""
+    email = emails_repo.get_email(conn, email_id)
     reply = replies_repo.get_latest_for_email(conn, email_id)
-    if reply is not None:
-        replies_repo.update_reply(conn, reply["id"], status="approved")
-    # E7 performs the Gmail send and flips this to 'sent'.
-    emails_repo.update_status(conn, email_id, "approved")
+    if email is None or reply is None:
+        raise HTTPException(status_code=404, detail="email or reply not found")
+    if not mail.is_connected():
+        ctx = _card_context(conn, email_id)
+        return _render(
+            request, "partials/email_card.html", error="Gmail not connected", **ctx
+        )
+    try:
+        sender.send_reply(conn, mail, email, reply)
+    except Exception:  # noqa: BLE001 - surface send failures in the UI
+        logger.exception("send failed for email %s", email_id)
+        ctx = _card_context(conn, email_id)
+        return _render(
+            request, "partials/email_card.html", error="Send failed", **ctx
+        )
     return _render(request, "partials/email_card.html", **_card_context(conn, email_id))
 
 

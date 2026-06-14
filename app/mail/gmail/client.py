@@ -100,3 +100,6 @@ class GmailClient:
                 userId=self._user, body={"id": draft_id}
             )
         )
+
+    def delete_draft(self, draft_id: str) -> None:
+        _execute(self._svc.users().drafts().delete(userId=self._user, id=draft_id))

@@ -17,6 +17,7 @@ from app.db.connection import connect
 from app.db.repositories import emails as emails_repo
 from app.db.repositories import settings as settings_repo
 from app.db.vector_store import SqliteVecStore
+from app.mail import sender
 from app.mail.base import MailProvider
 from app.mail.ingest import sync_once
 from app.providers.base import Provider
@@ -104,6 +105,7 @@ async def _run(
         "drafted": 0,
         "needs_human": 0,
         "skipped": 0,
+        "sent": 0,
         "errors": 0,
     }
 
@@ -156,4 +158,40 @@ async def _run(
         elif status == "error":
             summary["errors"] += 1
 
+    # 4. Sequential dispatch (Epic 7): Pilot Gmail drafts vs gated Auto-send.
+    await asyncio.to_thread(
+        _dispatch_drafts, db_path, mail_provider, survivors, results, settings, summary
+    )
     return summary
+
+
+def _dispatch_drafts(
+    db_path: str,
+    mail_provider: MailProvider,
+    survivors: list[tuple[dict[str, Any], str]],
+    results: list[dict],
+    settings: Settings,
+    summary: dict,
+) -> None:
+    """Create Pilot drafts / auto-send freshly drafted replies (sequential)."""
+    if not mail_provider.is_connected():
+        return
+    conn = connect(db_path)
+    try:
+        settings_row = settings_repo.get_settings_row(conn)
+        for (email, _), result in zip(survivors, results, strict=True):
+            if result.get("status") != "drafted":
+                continue
+            try:
+                action = sender.dispatch(
+                    conn, mail_provider, email["id"], settings_row,
+                    create_drafts=settings.create_gmail_drafts,
+                )
+            except Exception:  # noqa: BLE001 - isolate a bad send from the rest
+                logger.exception("dispatch failed for email %s", email["id"])
+                continue
+            if action == "sent":
+                summary["drafted"] -= 1
+                summary["sent"] += 1
+    finally:
+        conn.close()

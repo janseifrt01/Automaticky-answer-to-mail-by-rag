@@ -203,3 +203,6 @@ class GmailProvider:
 
     def send_draft(self, draft_id: str) -> str:
         return self._require_client().send_draft(draft_id)["id"]
+
+    def delete_draft(self, draft_id: str) -> None:
+        self._require_client().delete_draft(draft_id)

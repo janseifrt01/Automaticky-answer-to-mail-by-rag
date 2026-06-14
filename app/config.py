@@ -63,6 +63,8 @@ class Settings(BaseSettings):
     # Scheduler / async processing
     scheduler_enabled: bool = True
     max_concurrency: int = 4
+    # Sending (Epic 7): create a native Gmail draft per reply in Pilot mode.
+    create_gmail_drafts: bool = True
 
     model_config = SettingsConfigDict(
         env_file=".env",

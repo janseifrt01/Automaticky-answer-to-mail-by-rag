@@ -10,9 +10,9 @@ import pytest
 from app.db.repositories import emails as emails_repo
 from app.db.repositories import replies as replies_repo
 from app.db.repositories import settings as settings_repo
-from app.deps import get_embedder
+from app.deps import get_embedder, get_mail
 
-from tests.conftest import FakeProvider
+from tests.conftest import FakeMailProvider, FakeProvider
 
 
 @pytest.fixture
@@ -77,12 +77,32 @@ def test_edit_reply_persists(client):
     assert reply["reply_text"] == "Edited reply."
 
 
-def test_approve_marks_approved(client):
+def test_approve_sends_via_mail_provider(client):
     eid = _seed_drafted(client.app.state.db)
-    resp = client.post(f"/emails/{eid}/approve")
+    fake = FakeMailProvider([])
+    client.app.dependency_overrides[get_mail] = lambda: fake
+    try:
+        resp = client.post(f"/emails/{eid}/approve")
+    finally:
+        client.app.dependency_overrides.clear()
     assert resp.status_code == 200
-    assert "queued to send" in resp.text
-    assert emails_repo.get_email(client.app.state.db, eid)["status"] == "approved"
+    assert "sent ✓" in resp.text
+    assert len(fake.sent) == 1
+    assert emails_repo.get_email(client.app.state.db, eid)["status"] == "sent"
+
+
+def test_approve_when_not_connected_shows_error(client):
+    eid = _seed_drafted(client.app.state.db)
+    client.app.dependency_overrides[get_mail] = lambda: FakeMailProvider(
+        [], connected=False
+    )
+    try:
+        resp = client.post(f"/emails/{eid}/approve")
+    finally:
+        client.app.dependency_overrides.clear()
+    assert "Gmail not connected" in resp.text
+    # Still drafted — nothing sent.
+    assert emails_repo.get_email(client.app.state.db, eid)["status"] == "drafted"
 
 
 def test_discard(client):

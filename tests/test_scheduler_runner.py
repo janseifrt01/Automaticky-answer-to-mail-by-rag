@@ -22,27 +22,33 @@ CONFIDENT = RetrievedChunk(
 class StubLLM(FakeProvider):
     """Content-aware LLM: triage vs generation by system prompt; can raise."""
 
-    def __init__(self, *, triage="answerable", boom_marker=None):
+    def __init__(self, *, triage="answerable", boom_marker=None, should_send=False):
         super().__init__()
         self.triage = triage
         self.boom_marker = boom_marker
+        self.should_send = should_send
 
     def generate(self, system, user, *, json_schema=None):
         if self.boom_marker and self.boom_marker in user:
             raise RuntimeError("boom")
         if "triage" in system.lower():
             return f'{{"category": "{self.triage}", "reason": "stub"}}'
-        return '{"reply": "stub reply", "confidence": 0.9, "should_send": false}'
+        send = "true" if self.should_send else "false"
+        return f'{{"reply": "stub reply", "confidence": 0.9, "should_send": {send}}}'
 
 
 def _settings(**kw) -> Settings:
     return Settings(_env_file=None, openai_api_key="x", **kw)
 
 
-def _make_db(tmp_path, emails) -> str:
+def _make_db(tmp_path, emails, settings_updates=None) -> str:
+    from app.db.repositories import settings as settings_repo
+
     db_path = str(tmp_path / "cycle.db")
     conn = connect(db_path)
     bootstrap(conn)
+    if settings_updates:
+        settings_repo.update_settings(conn, **settings_updates)
     for e in emails:
         emails_repo.upsert_email(conn, **e)
     conn.close()
@@ -127,6 +133,42 @@ async def test_single_flight_skips_overlapping_run(tmp_path):
         assert out["status"] == "skipped"
     finally:
         lock.release()
+
+
+async def test_pilot_creates_gmail_draft(tmp_path, monkeypatch):
+    monkeypatch.setattr("app.rag.pipeline.retrieve", lambda *a, **k: [CONFIDENT])
+    db = _make_db(tmp_path, [_email("m1")])  # DB settings default to pilot
+    mail = FakeMailProvider([])
+    summary = await _run(db, mail, StubLLM(), _settings())
+    assert summary["drafted"] == 1
+    assert summary["sent"] == 0
+    assert len(mail.drafts) == 1  # Pilot safety-net draft created
+
+
+async def test_auto_sends_when_gated(tmp_path, monkeypatch):
+    monkeypatch.setattr("app.rag.pipeline.retrieve", lambda *a, **k: [CONFIDENT])
+    db = _make_db(
+        tmp_path, [_email("m1")],
+        settings_updates={"reply_mode": "auto", "confidence_threshold": 0.75},
+    )
+    mail = FakeMailProvider([])
+    summary = await _run(db, mail, StubLLM(should_send=True), _settings())
+    assert summary["sent"] == 1
+    assert summary["drafted"] == 0
+    assert len(mail.sent) == 1
+    assert emails_repo.get_by_message_id(connect(db), "m1")["status"] == "sent"
+
+
+async def test_auto_falls_back_to_draft_when_model_defers(tmp_path, monkeypatch):
+    monkeypatch.setattr("app.rag.pipeline.retrieve", lambda *a, **k: [CONFIDENT])
+    db = _make_db(
+        tmp_path, [_email("m1")], settings_updates={"reply_mode": "auto"}
+    )
+    mail = FakeMailProvider([])
+    # Model defers (should_send=False) → not auto-sent, left as a Pilot draft.
+    summary = await _run(db, mail, StubLLM(should_send=False), _settings())
+    assert summary["sent"] == 0
+    assert summary["drafted"] == 1
 
 
 async def test_sync_brings_in_new_mail(tmp_path, monkeypatch):

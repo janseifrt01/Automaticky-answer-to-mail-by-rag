@@ -53,3 +53,7 @@ class MailProvider(Protocol):
     def send_draft(self, draft_id: str) -> str:
         """Send a previously created draft; return the sent-message id."""
         ...
+
+    def delete_draft(self, draft_id: str) -> None:
+        """Delete a draft (e.g. a stale Pilot draft after sending fresh text)."""
+        ...

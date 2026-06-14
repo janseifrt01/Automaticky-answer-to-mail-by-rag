@@ -115,6 +115,7 @@ class FakeMailProvider:
         self.sent: list[OutgoingMessage] = []
         self.drafts: list[OutgoingMessage] = []
         self.sent_drafts: list[str] = []
+        self.deleted_drafts: list[str] = []
 
     def is_connected(self) -> bool:
         return self._connected
@@ -149,6 +150,9 @@ class FakeMailProvider:
     def send_draft(self, draft_id: str) -> str:
         self.sent_drafts.append(draft_id)
         return f"sent-{draft_id}"
+
+    def delete_draft(self, draft_id: str) -> None:
+        self.deleted_drafts.append(draft_id)
 
 
 def make_email(message_id: str, *, thread_id: str = "t1", **kw) -> EmailMessage:
