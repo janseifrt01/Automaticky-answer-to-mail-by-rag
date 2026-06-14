@@ -70,28 +70,35 @@ dashboard, and Approve & Send. Auto-send works only when all guards pass.
 
 ## Epic 3 — Knowledge base ingestion
 
-- [ ] **3.1 (P0)** File upload (PDF/DOCX/TXT) + paste-text endpoint.
-- [ ] **3.2 (P0)** Text extraction: `pypdf`, `python-docx`, plain read.
-- [ ] **3.3 (P0)** Chunking (size + overlap) with source metadata retained.
-- [ ] **3.4 (P0)** Embed chunks and store vectors in `sqlite-vec`.
-- [ ] **3.5 (P1)** List / search / delete knowledge entries (re-index on delete).
+> Write side of the retrieval seam shared with Epic 4. Detailed plan:
+> `docs/epics-3-4-rag.md`.
 
-## Epic 4 — RAG pipeline (triage → gate → generate)
+- [ ] **3.1 (P0)** Parsers: PDF (`pypdf`), DOCX (`python-docx`), TXT (plain read).
+- [ ] **3.2 (P0)** Chunking (char window + overlap), metadata retained.
+- [ ] **3.3 (P0)** Ingest service: parse → chunk → embed → index via the
+  Epic 1 `knowledge` repo + `VectorStore`; re-ingest replaces a source.
+- [ ] **3.4 (P0)** KB routes: upload / paste / list / delete (JSON; UI in E6).
+- [ ] **3.5 (P1)** Tests: parsers, chunk boundaries, ingest idempotency, delete
+  removes chunks **and** vectors.
 
-- [ ] **4.1 (P0)** **Triage**: classify email as answerable-from-KB /
-  needs-human / no-reply-needed.
-- [ ] **4.2 (P0)** **Safe-sender / loop guards**: skip automated senders & lists
-  (`Auto-Submitted`, `List-Id`, `Precedence: bulk`), other auto-replies, own
-  sent mail.
-- [ ] **4.3 (P0)** **Retrieve**: embed email (+ thread context), vector-search
-  top-k chunks.
-- [ ] **4.4 (P0)** **Confidence gate**: if top scores < threshold, do not draft;
-  flag "no confident answer, needs human."
-- [ ] **4.5 (P0)** **Grounded generation**: prompt to answer only from retrieved
-  context; structured output `{reply, sources_used, confidence, should_send}`.
-- [ ] **4.6 (P0)** Persist reply + cited sources; set email status.
-- [ ] **4.7 (P1)** Unit tests for triage, gate thresholds, and grounding/defer
-  behavior (mock LLM).
+## Epic 4 — RAG pipeline (triage → retrieve → gate → generate)
+
+> Read side of the retrieval seam; shares embedding model + scoring with Epic 3.
+> Detailed plan: `docs/epics-3-4-rag.md`. Stops at a stored draft (send = E7).
+
+- [ ] **4.0 (P0)** Shared `scoring.py`: distance↔similarity + confidence gate.
+- [ ] **4.1 (P0)** Safe-sender / loop guards (rule-based on Epic 2 headers).
+- [ ] **4.2 (P0)** LLM triage: answerable-from-KB / needs-human / no-reply;
+  malformed output fails safe to needs-human.
+- [ ] **4.3 (P0)** Retrieve: embed email (+ thread context), vector-search top-k.
+- [ ] **4.4 (P0)** Confidence gate: top score < threshold → flag needs-human,
+  no draft.
+- [ ] **4.5 (P0)** Grounded generation: answer only from context; structured
+  output `{reply, sources_used, confidence, should_send}`.
+- [ ] **4.6 (P0)** Pipeline `process_email`: orchestrate + persist via existing
+  repos (email status, reply + cited sources). No schema changes.
+- [ ] **4.7 (P1)** Tests: guards, triage, retrieval scoring, gate, generation,
+  end-to-end (mock LLM).
 
 ## Epic 5 — Scheduler / orchestration
 
