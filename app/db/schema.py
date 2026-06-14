@@ -19,6 +19,7 @@ _SCHEMA_STATEMENTS: tuple[str, ...] = (
     """
     CREATE TABLE IF NOT EXISTS knowledge_chunks (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        namespace   TEXT NOT NULL DEFAULT 'default',  -- per-topic streams (fwd-compat)
         source_type TEXT NOT NULL,            -- 'file' | 'paste'
         source_name TEXT NOT NULL,
         chunk_index INTEGER NOT NULL,
@@ -28,6 +29,7 @@ _SCHEMA_STATEMENTS: tuple[str, ...] = (
         created_at  TEXT NOT NULL
     );
     """,
+    "CREATE INDEX IF NOT EXISTS idx_chunks_namespace ON knowledge_chunks(namespace);",
     """
     CREATE TABLE IF NOT EXISTS emails (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,

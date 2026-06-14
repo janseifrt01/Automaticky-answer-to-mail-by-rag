@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     confidence_threshold: float = 0.75
     reply_mode: ReplyMode = ReplyMode.PILOT
     sync_interval_min: int = 5
+    # Knowledge-base chunking + retrieval
+    chunk_size: int = 1000
+    chunk_overlap: int = 150
+    retrieval_top_k: int = 5
 
     model_config = SettingsConfigDict(
         env_file=".env",

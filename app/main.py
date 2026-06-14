@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from app.config import get_settings
 from app.db.connection import connect
 from app.db.schema import bootstrap
-from app.routers import auth, health
+from app.routers import auth, health, knowledge
 
 
 @asynccontextmanager
@@ -34,6 +34,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="RAG Mail Auto-Reply", lifespan=lifespan)
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(knowledge.router)
     return app
 
 

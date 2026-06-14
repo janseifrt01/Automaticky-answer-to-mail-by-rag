@@ -23,7 +23,10 @@ def connect(db_path: str) -> sqlite3.Connection:
     if path.parent and not path.parent.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
 
-    conn = sqlite3.connect(db_path)
+    # check_same_thread=False: FastAPI runs sync handlers in a threadpool, so
+    # the single app connection is used across threads. Access is serialized by
+    # SQLite's own locking, which is fine at single-user volume.
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
 
     # Load the sqlite-vec extension, then re-disable extension loading.

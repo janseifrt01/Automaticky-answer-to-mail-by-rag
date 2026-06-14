@@ -11,6 +11,8 @@ src = ["app", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+# Depends()/File()/Form() in argument defaults is the idiomatic FastAPI pattern.
+ignore = ["B008"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
