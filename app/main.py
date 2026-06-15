@@ -12,7 +12,9 @@ from fastapi import FastAPI
 
 from app.config import get_settings
 from app.db.connection import connect
-from app.db.schema import bootstrap
+from app.db.repositories import settings as settings_repo
+from app.db.schema import bootstrap, ensure_vector_table
+from app.providers.factory import expected_embedding_dim
 from app.routers import auth, health, knowledge, sync, web
 from app.scheduler import service
 
@@ -23,6 +25,8 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     conn = connect(settings.db_path)
     bootstrap(conn)
+    dim = expected_embedding_dim(settings_repo.get_settings_row(conn))
+    ensure_vector_table(conn, dim)
     app.state.db = conn
     service.start_scheduler(app)
     try:

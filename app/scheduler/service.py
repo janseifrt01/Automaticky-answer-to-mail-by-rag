@@ -14,8 +14,9 @@ from fastapi import FastAPI
 
 from app.config import get_settings
 from app.db.connection import connect
+from app.db.repositories import settings as settings_repo
 from app.mail.factory import get_mail_provider
-from app.providers import get_provider
+from app.providers import get_provider_for
 from app.scheduler.runner import run_cycle
 
 logger = logging.getLogger(__name__)
@@ -29,9 +30,9 @@ async def run_once(app: FastAPI | None = None) -> dict:
     conn = connect(settings.db_path)
     try:
         mail_provider = get_mail_provider(conn, settings)
+        llm_provider = get_provider_for(settings_repo.get_settings_row(conn))
     finally:
         conn.close()
-    llm_provider = get_provider()
     summary = await run_cycle(
         db_path=settings.db_path,
         mail_provider=mail_provider,

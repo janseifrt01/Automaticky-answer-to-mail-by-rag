@@ -10,7 +10,7 @@ from collections.abc import Iterator
 
 import pytest
 from app.db.connection import connect
-from app.db.schema import EMBEDDING_DIM, bootstrap
+from app.db.schema import EMBEDDING_DIM, bootstrap, ensure_vector_table
 from app.db.vector_store import SqliteVecStore
 from app.mail.models import EmailMessage, OutgoingMessage, SyncResult
 from fastapi.testclient import TestClient
@@ -22,6 +22,7 @@ def tmp_db(tmp_path) -> Iterator[sqlite3.Connection]:
     db_file = tmp_path / "test.db"
     conn = connect(str(db_file))
     bootstrap(conn)
+    ensure_vector_table(conn)
     try:
         yield conn
     finally:

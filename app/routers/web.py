@@ -21,12 +21,14 @@ from app.db.repositories import emails as emails_repo
 from app.db.repositories import knowledge as kb_repo
 from app.db.repositories import replies as replies_repo
 from app.db.repositories import settings as settings_repo
+from app.db.schema import vector_table_dim
 from app.db.vector_store import SqliteVecStore
 from app.deps import get_db, get_embedder, get_mail, get_vector_store
 from app.mail import sender
 from app.mail.base import MailProvider
 from app.providers.base import Provider
-from app.rag import ingest, parsers
+from app.providers.factory import expected_embedding_dim
+from app.rag import ingest, parsers, reindex
 from app.scheduler import runner, service
 
 logger = logging.getLogger(__name__)
@@ -186,10 +188,13 @@ def requeue(
 
 @router.get("/knowledge", response_class=HTMLResponse)
 def knowledge_page(request: Request, conn: sqlite3.Connection = Depends(get_db)):
+    row = settings_repo.get_settings_row(conn)
     return _render(
         request,
         "knowledge.html",
         sources=kb_repo.list_sources(conn),
+        index_dim=vector_table_dim(conn),
+        expected_dim=expected_embedding_dim(row),
         **_status_context(request, conn),
     )
 
@@ -259,6 +264,22 @@ def kb_delete(
     )
 
 
+@router.post("/knowledge/reindex", response_class=HTMLResponse)
+def kb_reindex(
+    request: Request,
+    conn: sqlite3.Connection = Depends(get_db),
+    store: SqliteVecStore = Depends(get_vector_store),
+    provider: Provider = Depends(get_embedder),
+):
+    try:
+        count, dim = reindex.reindex_all(conn, store, provider)
+    except Exception as exc:  # noqa: BLE001 - surface model/download errors in the UI
+        return _kb_fragment(request, conn, error=f"Reindex failed: {exc}")
+    return _kb_fragment(
+        request, conn, message=f"Reindexed {count} chunks at {dim}-dim"
+    )
+
+
 # --- Settings ----------------------------------------------------------------
 
 @router.get("/settings", response_class=HTMLResponse)
@@ -278,6 +299,9 @@ def settings_save(
     reply_mode: str = Form("pilot"),
     confidence_threshold: float = Form(0.75),
     auto_send_keywords: str = Form(""),
+    llm_provider: str = Form("openai"),
+    embedding_provider: str = Form("openai"),
+    generation_model: str = Form(""),
     conn: sqlite3.Connection = Depends(get_db),
 ):
     keywords = [k.strip() for k in auto_send_keywords.split(",") if k.strip()]
@@ -286,6 +310,9 @@ def settings_save(
         reply_mode=reply_mode,
         confidence_threshold=confidence_threshold,
         auto_send_rules={"keywords": keywords},
+        llm_provider=llm_provider,
+        embedding_provider=embedding_provider,
+        generation_model=generation_model.strip(),
     )
     return _render(
         request,

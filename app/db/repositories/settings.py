@@ -14,6 +14,9 @@ _UPDATABLE = {
     "reply_mode",
     "confidence_threshold",
     "auto_send_rules",
+    "llm_provider",
+    "embedding_provider",
+    "generation_model",
 }
 _JSON_FIELDS = {"auto_send_rules"}
 _BOOL_FIELDS = {"gmail_connected"}

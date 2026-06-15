@@ -19,6 +19,29 @@
       <input name="auto_send_keywords" class="w-full border rounded p-1"
              value="{{ (settings.auto_send_rules.keywords | join(', ')) if settings.auto_send_rules and settings.auto_send_rules.keywords else '' }}">
     </div>
+    <div>
+      <label class="block font-medium">Reply model provider</label>
+      <select name="llm_provider" class="border rounded p-1">
+        <option value="openai" {% if (settings.llm_provider or 'openai') == 'openai' %}selected{% endif %}>OpenAI</option>
+        <option value="anthropic" {% if settings.llm_provider == 'anthropic' %}selected{% endif %}>Anthropic (Claude / Haiku)</option>
+        <option value="github_models" {% if settings.llm_provider == 'github_models' %}selected{% endif %}>GitHub Models</option>
+      </select>
+    </div>
+    <div>
+      <label class="block font-medium">Generation model <span class="text-gray-500 font-normal">(optional override)</span></label>
+      <input name="generation_model" class="w-full border rounded p-1"
+             placeholder="e.g. claude-haiku-4-5 · gpt-4o-mini · openai/gpt-4o-mini"
+             value="{{ settings.generation_model or '' }}">
+    </div>
+    <div>
+      <label class="block font-medium">Embedding provider</label>
+      <select name="embedding_provider" class="border rounded p-1">
+        <option value="openai" {% if (settings.embedding_provider or 'openai') == 'openai' %}selected{% endif %}>OpenAI</option>
+        <option value="github_models" {% if settings.embedding_provider == 'github_models' %}selected{% endif %}>GitHub Models</option>
+        <option value="fastembed" {% if settings.embedding_provider == 'fastembed' %}selected{% endif %}>Local (fastembed)</option>
+      </select>
+      <p class="text-xs text-gray-500 mt-1">Claude has no embeddings API — KB indexing/search uses this provider. "Local (fastembed)" runs offline, no key. Switching providers changes the vector dimension — rebuild the index on the Knowledge Base page afterwards.</p>
+    </div>
     <button class="px-3 py-1 rounded bg-blue-600 text-white">Save</button>
   </form>
 </div>

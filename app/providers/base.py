@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 
@@ -36,3 +37,27 @@ class LLMProvider(Protocol):
 @runtime_checkable
 class Provider(EmbeddingProvider, LLMProvider, Protocol):
     """A provider that offers both embeddings and generation."""
+
+
+@dataclass
+class CompositeProvider:
+    """Pairs an embedding source with a (possibly different) generation source.
+
+    Lets the app draft with one provider (e.g. Anthropic Claude) while embeddings
+    come from another (e.g. OpenAI), since not every LLM offers an embeddings API.
+    """
+
+    embedder: EmbeddingProvider
+    llm: LLMProvider
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        return self.embedder.embed(texts)
+
+    def generate(
+        self,
+        system: str,
+        user: str,
+        *,
+        json_schema: dict | None = None,
+    ) -> str:
+        return self.llm.generate(system, user, json_schema=json_schema)

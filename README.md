@@ -33,7 +33,9 @@ Runs **locally for one user / one inbox**.
 ## Requirements
 
 - Python 3.11+
-- An **OpenAI API key** (embeddings + reply generation)
+- An **OpenAI API key** (embeddings, and reply generation by default)
+- *Optional* — an **Anthropic API key** or a **GitHub personal access token**,
+  if you pick Claude or GitHub Models for reply generation (Settings → provider)
 - **Google Cloud OAuth credentials** (Gmail) — see setup below
 
 ## Install
@@ -60,6 +62,15 @@ essentials:
   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
   ```
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — from the Google Cloud setup.
+
+**Model provider (optional).** OpenAI is the default. To draft replies with
+Anthropic Claude (e.g. Haiku) or GitHub Models, change the provider in
+**Settings** (persisted in the DB), or set the `LLM_PROVIDER` / `EMBEDDING_PROVIDER`
+defaults in `.env` and supply `ANTHROPIC_API_KEY` or `GITHUB_TOKEN` as needed.
+Claude has no embeddings API, so embeddings come from OpenAI, GitHub Models, or a
+local `fastembed` model (offline, no key — set `EMBEDDING_PROVIDER=fastembed`).
+Switching the embedding model changes the vector dimension, so rebuild the index
+afterwards (Knowledge Base → Rebuild index).
 
 ### Google Cloud / Gmail OAuth setup
 
@@ -122,7 +133,7 @@ app/
     schema.py          # schema + idempotent bootstrap
     repositories/      # data access per table
     vector_store/      # VectorStore interface + sqlite-vec impl
-  providers/           # embed()/generate() interface + OpenAI impl
+  providers/           # embed()/generate() — OpenAI/Anthropic/GitHub Models + local fastembed
   mail/                # MailProvider facade, Gmail impl, sender, ingest
   rag/                 # chunking, ingest, triage, retrieval, generate, pipeline
   scheduler/           # async run_cycle + APScheduler service
@@ -137,7 +148,7 @@ docs/                  # per-epic design notes
 The app is built on three swappable facades so the big choices stay as config,
 not rewrites:
 
-- **`providers`** (`embed()` / `generate()`) — OpenAI today; Claude is a swap.
+- **`providers`** (`embed()` / `generate()`) — OpenAI / Anthropic / GitHub Models, selectable.
 - **`mail.MailProvider`** — Gmail/OAuth2 today; Outlook/IMAP is a new class.
 - **`db.vector_store.VectorStore`** — `sqlite-vec` today; pgvector later.
 

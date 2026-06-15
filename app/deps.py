@@ -11,10 +11,11 @@ import sqlite3
 from fastapi import Request
 
 from app.config import get_settings
+from app.db.repositories import settings as settings_repo
 from app.db.vector_store import SqliteVecStore
 from app.mail.base import MailProvider
 from app.mail.factory import get_mail_provider
-from app.providers import get_provider
+from app.providers import get_provider_for
 from app.providers.base import Provider
 
 
@@ -23,9 +24,10 @@ def get_db(request: Request) -> sqlite3.Connection:
     return request.app.state.db
 
 
-def get_embedder() -> Provider:
-    """The configured embedding/generation provider (OpenAI by default)."""
-    return get_provider()
+def get_embedder(request: Request) -> Provider:
+    """The provider for the DB-selected LLM + embedding providers."""
+    row = settings_repo.get_settings_row(request.app.state.db)
+    return get_provider_for(row)
 
 
 def get_mail(request: Request) -> MailProvider:

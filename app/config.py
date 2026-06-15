@@ -48,9 +48,32 @@ class Settings(BaseSettings):
     # --- Storage ---
     db_path: str = "./data/app.db"
 
-    # --- Models (provider-swappable) ---
+    # --- Models (OpenAI defaults; provider-swappable) ---
     embedding_model: str = "text-embedding-3-small"
     generation_model: str = "gpt-4o-mini"
+
+    # --- Provider selection (defaults; runtime choice persists in DB settings) ---
+    # Reply drafting + triage: "openai" | "anthropic" | "github_models"
+    llm_provider: str = "openai"
+    # KB indexing + retrieval: "openai" | "github_models" | "fastembed"
+    # (Anthropic has no embeddings API)
+    embedding_provider: str = "openai"
+
+    # --- Anthropic (Claude) — used when llm_provider == "anthropic" ---
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-haiku-4-5"
+
+    # --- GitHub Models (OpenAI-compatible; GitHub PAT auth) ---
+    github_token: str = ""
+    github_models_base_url: str = "https://models.github.ai/inference"
+    github_models_generation_model: str = "openai/gpt-4o-mini"
+    github_models_embedding_model: str = "openai/text-embedding-3-small"
+
+    # --- Local embeddings (fastembed; used when embedding_provider == "fastembed") ---
+    # Runs locally, no API key. BGE-small is English / 384-dim; for Czech or
+    # multilingual mail use e.g. "intfloat/multilingual-e5-large" (1024-dim).
+    # Changing the model changes the dimension → rebuild the index afterwards.
+    fastembed_model: str = "BAAI/bge-small-en-v1.5"
 
     # --- RAG / behavior ---
     confidence_threshold: float = 0.75

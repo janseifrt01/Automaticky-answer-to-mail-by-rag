@@ -51,8 +51,8 @@ Default behavior is **Pilot mode** (every draft is reviewed before sending);
 | Database              | **SQLite** (single-file, no server to operate)                   |
 | Vector search         | **`sqlite-vec`** extension (vectors live in the same SQLite DB)  |
 | Scheduling            | **APScheduler** in-process, ~5 min interval                      |
-| AI embeddings         | OpenAI `text-embedding-3-small` (provider-swappable)             |
-| AI reply generation   | OpenAI `gpt-4o-mini` (provider-swappable)                        |
+| AI embeddings         | OpenAI / GitHub Models / local `fastembed` (selectable)          |
+| AI reply generation   | OpenAI `gpt-4o-mini`, Anthropic Claude (Haiku), or GitHub Models |
 | Email integration     | Gmail API — `google-api-python-client` + `google-auth-oauthlib` |
 | File parsing          | `pypdf` (PDF), `python-docx` (DOCX), plain read (TXT)           |
 | Frontend              | FastAPI + Jinja2 + HTMX + Tailwind (no JS build)                 |
@@ -66,9 +66,15 @@ Default behavior is **Pilot mode** (every draft is reviewed before sending);
   a hosted multi-user service.)
 - **In-process APScheduler**: simplest for local use. A separate worker
   (Celery/arq) is unnecessary at single-user volume.
-- **Provider stays pluggable**: keep one `embed()` / `generate()` interface so
-  OpenAI ↔ Claude is a config swap, not a rewrite. OpenAI is the documented
-  default unless the user changes it.
+- **Providers are pluggable & independently selectable**: one `embed()` /
+  `generate()` interface, with the embedding source and the generation source
+  chosen separately (a `CompositeProvider` pairs them). OpenAI, Anthropic
+  (Claude/Haiku), and GitHub Models are supported; the active choice lives in the
+  DB settings row (Settings UI), defaulting to OpenAI. Embeddings can't use
+  Anthropic (no embeddings API), so Claude generation pairs with OpenAI/GitHub
+  Models embeddings, or a local `fastembed` model (offline, no key). Changing the
+  embedding model changes the vector dimension, so the KB must be re-indexed
+  (Knowledge Base → Rebuild index). See `app/providers/`.
 - **Mail behind a `MailProvider` facade**: receiving/sending go through a
   provider-agnostic interface (domain models, not Gmail types). Gmail/OAuth2 is
   the only v1 implementation; a future Outlook/IMAP provider is a new class, not
@@ -179,7 +185,9 @@ Pilot review happens in the web dashboard; "Approve & Send" calls `sender.send_r
 - **knowledge_chunks** — chunked KB content + source/metadata, plus a
   `namespace` (default `"default"`) — a forward-compat seam for future per-topic
   streams (see `docs/scaling-and-routing.md`). Embeddings live in the
-  **knowledge_vectors** `vec0` virtual table (1536-dim), keyed by `chunk_id`.
+  **knowledge_vectors** `vec0` virtual table whose dimension matches the
+   selected embedding model (1536 for OpenAI/GitHub Models, 384 for fastembed
+   BGE-small); switching the model needs a re-index (KB → Rebuild index).
 - **emails** — incoming message (`messageId`, `threadId`, sender, subject,
   body, headers, triage category) and status (`pending` / `triaged` /
   `drafted` / `needs_human` / `approved` / `sent` / `skipped` / `discarded` /
@@ -187,7 +195,8 @@ Pilot review happens in the web dashboard; "Approve & Send" calls `sender.send_r
 - **replies** — AI draft linked to an email: text, `sources_used`,
   `confidence`, `should_send`, `gmail_draft_id`, status.
 - **settings** — single row: Gmail connection, reply mode (Pilot/Auto),
-  confidence threshold, auto-send rules (keywords/categories).
+  confidence threshold, auto-send rules (keywords/categories), and provider
+  selection (`llm_provider`, `embedding_provider`, optional `generation_model`).
 - **sync_state** — single row: last Gmail `historyId` (opaque sync cursor).
 - **credentials** — per-provider encrypted OAuth token blob (Fernet).
 
@@ -223,5 +232,8 @@ Required keys (keep out of source control — use a gitignored `.env`):
 - Respect the **mail-sequential / LLM-concurrent** boundary and the **provider
   facades** (`providers`, `mail.MailProvider`, `db.vector_store.VectorStore`) —
   new providers are new classes, not edits to callers.
-- This project's app calls **OpenAI** by default (not Claude); use the OpenAI
-  SDK and documented model IDs unless the user changes the provider.
+- This project defaults to **OpenAI**, but the LLM and embedding providers are
+  now user-selectable (OpenAI / Anthropic Claude / GitHub Models) in Settings.
+  Use each provider's own SDK — the OpenAI SDK for OpenAI and GitHub Models (the
+  latter is OpenAI-compatible, via `base_url`); the `anthropic` SDK for Claude.
+  Embeddings never use Anthropic (no embeddings API).

@@ -56,6 +56,7 @@ def test_settings_page(client):
     assert resp.status_code == 200
     assert "Reply behavior" in resp.text
     assert "Pilot" in resp.text
+    assert "Reply model provider" in resp.text
 
 
 # --- dashboard queue + actions ----------------------------------------------
@@ -150,6 +151,9 @@ def test_settings_save(client):
             "reply_mode": "auto",
             "confidence_threshold": "0.6",
             "auto_send_keywords": "invoice, order",
+            "llm_provider": "anthropic",
+            "embedding_provider": "github_models",
+            "generation_model": "claude-haiku-4-5",
         },
     )
     assert resp.status_code == 200
@@ -158,6 +162,9 @@ def test_settings_save(client):
     assert row["reply_mode"] == "auto"
     assert row["confidence_threshold"] == 0.6
     assert row["auto_send_rules"] == {"keywords": ["invoice", "order"]}
+    assert row["llm_provider"] == "anthropic"
+    assert row["embedding_provider"] == "github_models"
+    assert row["generation_model"] == "claude-haiku-4-5"
 
 
 # --- sync action -------------------------------------------------------------

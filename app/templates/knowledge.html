@@ -26,5 +26,23 @@
   </div>
 </div>
 
+{% if index_dim and expected_dim and index_dim != expected_dim %}
+<div class="bg-amber-50 border border-amber-300 rounded p-3 mb-4 text-sm">
+  <p class="mb-2">Embedding provider changed — the index is <b>{{ index_dim }}-dim</b>
+     but the selected provider produces <b>{{ expected_dim }}-dim</b> vectors.
+     Rebuild it (re-embeds all chunks) so retrieval works again.</p>
+  <button class="px-3 py-1 rounded bg-amber-600 text-white"
+          hx-post="/knowledge/reindex" hx-target="#kb-sources" hx-swap="outerHTML"
+          hx-confirm="Rebuild the embedding index? This re-embeds all knowledge.">
+    Rebuild index ({{ expected_dim }}-dim)</button>
+</div>
+{% else %}
+<p class="text-xs text-gray-500 mb-4">Embedding index: {{ index_dim or '—' }}-dim.
+  <button class="ml-1 text-blue-600 hover:underline"
+          hx-post="/knowledge/reindex" hx-target="#kb-sources" hx-swap="outerHTML"
+          hx-confirm="Rebuild the embedding index? This re-embeds all knowledge.">Rebuild</button>
+</p>
+{% endif %}
+
 {% include "partials/kb_sources.html" %}
 {% endblock %}

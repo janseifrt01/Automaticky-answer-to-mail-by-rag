@@ -21,10 +21,13 @@ class OpenAIProvider:
         api_key: str,
         embedding_model: str,
         generation_model: str,
+        *,
+        base_url: str | None = None,
     ) -> None:
         self._api_key = api_key
         self._embedding_model = embedding_model
         self._generation_model = generation_model
+        self._base_url = base_url
         self._client: OpenAI | None = None
 
     @property
@@ -33,7 +36,10 @@ class OpenAIProvider:
         if self._client is None:
             from openai import OpenAI
 
-            self._client = OpenAI(api_key=self._api_key)
+            kwargs: dict = {"api_key": self._api_key}
+            if self._base_url:
+                kwargs["base_url"] = self._base_url
+            self._client = OpenAI(**kwargs)
         return self._client
 
     def embed(self, texts: list[str]) -> list[list[float]]:
@@ -66,13 +72,27 @@ class OpenAIProvider:
         return resp.choices[0].message.content or ""
 
 
-def build_openai_provider(settings) -> OpenAIProvider:
+def build_openai_provider(
+    settings, *, generation_model: str | None = None
+) -> OpenAIProvider:
     """Construct an :class:`OpenAIProvider` from app settings."""
     return OpenAIProvider(
         api_key=settings.openai_api_key,
         embedding_model=settings.embedding_model,
-        generation_model=settings.generation_model,
+        generation_model=generation_model or settings.generation_model,
     )
 
 
-__all__ = ["OpenAIProvider", "build_openai_provider"]
+def build_github_models_provider(
+    settings, *, generation_model: str | None = None
+) -> OpenAIProvider:
+    """GitHub Models is OpenAI-compatible — point the client at its base URL."""
+    return OpenAIProvider(
+        api_key=settings.github_token,
+        embedding_model=settings.github_models_embedding_model,
+        generation_model=generation_model or settings.github_models_generation_model,
+        base_url=settings.github_models_base_url,
+    )
+
+
+__all__ = ["OpenAIProvider", "build_openai_provider", "build_github_models_provider"]
