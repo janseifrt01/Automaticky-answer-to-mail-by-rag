@@ -10,7 +10,6 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
 from app.config import get_settings
-from app.db.repositories import credentials as cred_repo
 from app.mail.crypto import TokenCipher
 from app.mail.factory import build_gmail_client
 from app.mail.gmail import auth
@@ -27,7 +26,7 @@ def connect(request: Request) -> RedirectResponse:
 
 
 @router.get("/callback")
-def callback(request: Request, code: str, state: str | None = None):
+def callback(request: Request, code: str, state: str | None = None) -> RedirectResponse:
     settings = get_settings()
     expected = getattr(request.app.state, "oauth_state", None)
     if expected is not None and state != expected:
@@ -44,7 +43,9 @@ def callback(request: Request, code: str, state: str | None = None):
         if email:
             auth.set_account_email(conn, email)
 
-    return {"status": "connected", "account": cred_repo.get_account(conn, "gmail")}
+    # Connected — return to the Settings page (which shows the live connection
+    # status) instead of dumping JSON in the browser.
+    return RedirectResponse(url="/settings", status_code=303)
 
 
 @router.post("/disconnect")

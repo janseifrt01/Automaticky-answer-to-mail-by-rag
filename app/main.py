@@ -6,6 +6,18 @@ bootstrapped. The connection is stored on ``app.state`` for handlers to use.
 
 from __future__ import annotations
 
+# Corporate TLS interception: make Python's SSL verification use the OS trust
+# store (where a corporate root CA is installed via GPO) instead of certifi's
+# bundle. Without this, outbound HTTPS (Gmail OAuth/API, OpenAI/Anthropic) fails
+# behind an SSL-inspecting proxy with CERTIFICATE_VERIFY_FAILED. No-op when the
+# package isn't installed (e.g. CI / non-corporate machines).
+try:
+    import truststore
+
+    truststore.inject_into_ssl()
+except ImportError:  # truststore is optional
+    pass
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
